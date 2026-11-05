@@ -1,0 +1,222 @@
+/*
+ * 星穹玻璃设计系统 · 令牌与通用组件
+ * 与 src/cn/xqly/app/core/DesignTokens.java 语义一一对应。
+ * 原生在 onPageFinished / 切换主题时写入 <html data-theme data-mode>，
+ * 三种显示模式共享同一份 DOM 与业务状态，只覆盖视觉令牌。
+ */
+
+:root {
+  /* 语义色 —— 深色（默认） */
+  --bg: #070a18;
+  --surface: #111830;
+  --surface-2: #18213c;
+  --overlay: rgba(7, 10, 24, .88);
+  --border: rgba(190, 208, 255, .18);
+  --border-strong: rgba(190, 208, 255, .34);
+  --text: #eef3ff;
+  --dim: #b9c6e6;
+  --focus: #ffce86;
+  --brand: #b79bff;
+  --success: #6fe6b0;
+  --warning: #ffce86;
+  --error: #ff9a9a;
+
+  /* 4dp 栅格 / 间距 */
+  --s1: 4px;  --s2: 8px;  --s3: 12px;
+  --s4: 16px; --s6: 24px; --s8: 32px;
+
+  /* 分级圆角：控件 → 卡片 → 浮层 → Dock */
+  --r-ctl: 12px; --r-card: 16px; --r-sheet: 22px; --r-pill: 999px;
+
+  /* 动效 */
+  --t-short: 120ms; --t-mid: 240ms; --t-long: 400ms; --t-emph: 560ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+
+  /* 玻璃参数：统一光源自左上，同心圆角连续，阴影不过度堆积 */
+  --blur: 18px;
+  --sat: 160%;
+  --glass-top: rgba(255, 255, 255, .13);
+  --glass-bottom: rgba(255, 255, 255, .045);
+  --glass-glow: rgba(255, 206, 134, .22);
+  --shadow: 0 10px 34px rgba(0, 0, 0, .38);
+  --inner-light: inset 0 1px 0 rgba(255, 255, 255, .22);
+
+  /* 排版与触控 */
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC",
+          "Microsoft YaHei", sans-serif;
+  --fs-body: 1rem; --fs-sm: .875rem; --fs-lg: 1.125rem; --fs-xl: 1.375rem;
+  --lh: 1.65;
+  --touch: 48px;
+  --focus-w: 2px;
+  --maxw: 720px;
+  color-scheme: dark;
+}
+
+/* 真正调校过的浅色主题（不是简单反色）：降低玻璃亮度、加深文字与边框 */
+:root[data-theme="light"] {
+  --bg: #f2f5fc;
+  --surface: #ffffff;
+  --surface-2: #e9eef9;
+  --overlay: rgba(242, 245, 252, .92);
+  --border: rgba(28, 40, 78, .16);
+  --border-strong: rgba(28, 40, 78, .34);
+  --text: #131a2e;
+  --dim: #46527a;
+  --focus: #8a5a00;
+  --brand: #5b34a8;
+  --success: #0d7a4e;
+  --warning: #8a5a00;
+  --error: #b3261e;
+  --glass-top: rgba(255, 255, 255, .78);
+  --glass-bottom: rgba(226, 233, 250, .62);
+  --glass-glow: rgba(255, 206, 134, .28);
+  --shadow: 0 10px 30px rgba(30, 44, 90, .14);
+  --inner-light: inset 0 1px 0 rgba(255, 255, 255, .9);
+  color-scheme: light;
+}
+
+/* 原生节能：Material 风格实底，去掉模糊与持续动画 */
+:root[data-mode="eco"] {
+  --blur: 0px; --sat: 100%;
+  --glass-top: var(--surface); --glass-bottom: var(--surface);
+  --glass-glow: transparent;
+  --shadow: none; --inner-light: none;
+  --t-short: 0ms; --t-mid: 0ms; --t-long: 0ms; --t-emph: 0ms;
+}
+
+/* 增强可读：提高对比、减少透明、扩大焦点与触控目标 */
+:root[data-mode="contrast"] {
+  --blur: 0px; --sat: 100%;
+  --glass-top: var(--surface); --glass-bottom: var(--surface);
+  --border: var(--border-strong);
+  --dim: var(--text);
+  --overlay: var(--bg);
+  --focus-w: 4px;
+  --touch: 56px;
+  --shadow: none; --inner-light: none;
+  --t-short: 0ms; --t-mid: 0ms; --t-long: 0ms; --t-emph: 0ms;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: var(--fs-body) / var(--lh) var(--font);
+  padding: calc(env(safe-area-inset-top, 0px) + var(--s3)) var(--s3)
+           calc(env(safe-area-inset-bottom, 0px) + var(--s8));
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+/* 正文用稳定实底色，玻璃只用于 Dock / 悬浮工具 / 弹层 */
+.page { max-width: var(--maxw); margin: 0 auto; }
+
+h1, h2, h3 { line-height: 1.3; margin: 0 0 var(--s2); font-weight: 700; letter-spacing: .02em; }
+h1 { font-size: var(--fs-xl); }
+h2 { font-size: var(--fs-lg); }
+p { margin: 0 0 var(--s3); }
+small, .dim { color: var(--dim); font-size: var(--fs-sm); }
+
+:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--s1);
+}
+
+.glass {
+  position: relative;
+  background: linear-gradient(150deg, var(--glass-top), var(--glass-bottom));
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow), var(--inner-light);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+  backdrop-filter: blur(var(--blur)) saturate(var(--sat));
+}
+/* 统一光源：只在玻璃上沿留一道高光，不堆叠多层阴影 */
+.glass::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(120% 80% at 8% -10%, var(--glass-glow), transparent 60%);
+  pointer-events: none;
+}
+
+.hd { padding: var(--s4); margin-bottom: var(--s4); border-radius: var(--r-sheet); }
+.hd .row { display: flex; align-items: center; gap: var(--s3); }
+.hd .grow { flex: 1; min-width: 0; }
+
+.btn {
+  min-height: var(--touch); min-width: var(--touch);
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--s2); padding: 0 var(--s4);
+  border: 1px solid var(--border); border-radius: var(--r-ctl);
+  background: var(--surface-2); color: var(--text);
+  font: 600 var(--fs-sm) / 1 var(--font); cursor: pointer;
+  transition: transform var(--t-short) var(--ease), background var(--t-mid) var(--ease);
+}
+.btn:active { transform: scale(.96); }
+.btn[disabled], .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; transform: none; }
+.btn-primary { border-color: var(--focus); color: var(--text); }
+.btn-icon { padding: 0; border-radius: 50%; font-size: 1.125rem; }
+
+.field {
+  width: 100%; min-height: var(--touch);
+  padding: 0 var(--s4); color: var(--text);
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--r-ctl); font: var(--fs-body) / 1 var(--font);
+}
+.field::placeholder { color: var(--dim); opacity: 1; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s3); }
+.chip {
+  min-height: 40px; padding: 0 var(--s3);
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--border); border-radius: var(--r-pill);
+  background: transparent; color: var(--dim);
+  font: 500 var(--fs-sm) / 1 var(--font); cursor: pointer;
+}
+.chip[aria-pressed="true"] { color: var(--text); border-color: var(--focus); background: var(--surface-2); }
+
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.item { padding: var(--s4); border-radius: var(--r-card); }
+.item-title { font-weight: 650; font-size: var(--fs-body); margin: 0 0 var(--s1); }
+.item-snippet { color: var(--dim); font-size: var(--fs-sm); line-height: 1.6;
+  overflow-wrap: anywhere; margin: 0; }
+.item-snippet mark, .mark {
+  background: rgba(255, 206, 134, .22); color: var(--text);
+  border-radius: 3px; padding: 0 2px;
+}
+.item-meta { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s3); flex-wrap: wrap; }
+.badge {
+  display: inline-block; padding: 2px var(--s2); border-radius: var(--r-pill);
+  border: 1px solid var(--border); color: var(--dim); font-size: .75rem;
+}
+.badge.on { color: var(--warning); border-color: var(--warning); }
+
+/* 完整状态 UI：每种状态都有说明与明确动作，不做无限旋转加载 */
+.state {
+  padding: var(--s6) var(--s4); text-align: center;
+  border-radius: var(--r-card); border: 1px dashed var(--border-strong);
+  color: var(--dim); margin-bottom: var(--s4);
+}
+.state h2 { color: var(--text); }
+.state[hidden] { display: none; }
+.state .spinner {
+  width: 26px; height: 26px; margin: 0 auto var(--s3);
+  border: 3px solid var(--border); border-top-color: var(--focus);
+  border-radius: 50%; animation: spin var(--t-long) linear infinite;
+}
+:root[data-mode="eco"] .state .spinner,
+:root[data-mode="contrast"] .state .spinner { animation: none; border-top-color: var(--border-strong); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+@media (min-width: 720px) {
+  body { padding-left: var(--s6); padding-right: var(--s6); }
+  .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

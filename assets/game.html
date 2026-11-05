@@ -1,116 +1,67 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-mode="glass">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>星穹旅驿 · 方块合成</title>
-<style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;height:100%;overflow:hidden}
-body{
-  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-  color:#f3f6ff;
-  background:
-    radial-gradient(900px 600px at 12% 8%,rgba(168,124,255,.30),transparent 60%),
-    radial-gradient(700px 700px at 88% 92%,rgba(255,206,134,.18),transparent 62%),
-    linear-gradient(160deg,#0b1030 0%,#050713 52%,#120b2c 100%);
-  background-attachment:fixed;
-  display:flex;align-items:center;justify-content:center;
-  user-select:none;-webkit-user-select:none;
-}
-body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
-  background-image:radial-gradient(1.5px 1.5px at 20% 18%,#fff,transparent),
-  radial-gradient(1px 1px at 70% 12%,#fff,transparent),radial-gradient(1.5px 1.5px at 84% 62%,#fff,transparent),
-  radial-gradient(1px 1px at 32% 78%,#fff,transparent),radial-gradient(1px 1px at 56% 40%,#fff,transparent),
-  radial-gradient(1.5px 1.5px at 12% 52%,#fff,transparent);}
-.glass{background:linear-gradient(150deg,rgba(255,255,255,.13),rgba(255,255,255,.05));
-  border:1px solid rgba(255,255,255,.20);
-  box-shadow:0 12px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.22);
-  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
-.wrap{position:relative;width:min(100%,420px);height:100%;max-height:860px;
-  padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 14px);
-  display:flex;flex-direction:column;justify-content:center;gap:12px}
-.top{display:flex;align-items:center;gap:10px}
-.brand{flex:1;min-width:0}
-.brand h1{margin:0;font-size:17px;letter-spacing:.5px;font-weight:700;
-  background:linear-gradient(90deg,#ffe9b8,#e3d4ff 60%,#bfe6ff);
-  -webkit-background-clip:text;background-clip:text;color:transparent}
-.brand p{margin:3px 0 0;font-size:10.5px;color:rgba(214,226,255,.72)}
-.close{width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;
-  font-size:17px;color:#e7eeff;cursor:pointer}
-.scores{display:flex;gap:10px}
-.score{flex:1;border-radius:14px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between}
-.score span{font-size:10.5px;color:rgba(214,226,255,.78)}
-.score b{font-size:19px;font-variant-numeric:tabular-nums;color:#ffe6b0}
-.score.best b{color:#c9b6ff}
-.board-box{flex:none;width:100%;display:flex;align-items:center;justify-content:center}
-.board{width:100%;aspect-ratio:1/1;border-radius:20px;padding:9px;
-  display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:8px;position:relative}
-.cell{border-radius:12px;background:rgba(255,255,255,.06);
-  box-shadow:inset 0 1px 2px rgba(0,0,0,.28);display:grid;place-items:center}
-.tile{width:100%;height:100%;border-radius:12px;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;line-height:1;gap:3px;
-  box-shadow:0 4px 14px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.34);
-  animation:pop .18s ease-out}
-.tile em{font-style:normal;font-size:clamp(15px,5.2vw,23px);font-weight:800;letter-spacing:1px}
-.tile small{font-size:clamp(8px,2.2vw,10px);opacity:.82;font-weight:600}
-.tile.two{font-size:.82em}
-@keyframes pop{0%{transform:scale(.55);opacity:.2}100%{transform:scale(1);opacity:1}}
-.tile.merge{animation:merge .26s ease-out}
-@keyframes merge{0%{transform:scale(1)}45%{transform:scale(1.16)}100%{transform:scale(1)}}
-.ctrl{display:flex;gap:10px}
-.btn{flex:1;height:44px;border-radius:14px;display:grid;place-items:center;
-  font-size:12.5px;font-weight:600;color:#eaf0ff;cursor:pointer;letter-spacing:.5px}
-.btn:active{transform:scale(.96)}
-.btn.primary{background:linear-gradient(135deg,rgba(255,206,134,.30),rgba(168,124,255,.28));
-  border-color:rgba(255,214,160,.42)}
-.hint{text-align:center;font-size:10.5px;color:rgba(200,214,255,.62);line-height:1.6}
-.hint b{color:#ffe0a8;font-weight:600}
-.mask{position:absolute;inset:0;border-radius:20px;display:none;flex-direction:column;
-  align-items:center;justify-content:center;gap:14px;text-align:center;
-  background:rgba(6,8,22,.80);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
-.mask.show{display:flex}
-.mask h2{margin:0;font-size:22px;background:linear-gradient(90deg,#ffe9b8,#c9b6ff);
-  -webkit-background-clip:text;background-clip:text;color:transparent}
-.mask p{margin:0;font-size:12px;color:rgba(214,226,255,.8);padding:0 24px;line-height:1.7}
-.mask .btn{width:150px;flex:none}
-@media (max-height:640px){.brand p,.hint{display:none}.wrap{gap:8px}}
-</style>
+<link rel="stylesheet" href="library.css">
+<link rel="stylesheet" href="game.css">
+<script src="bridge-shim.js"></script>
+<script src="game-engine.js"></script>
 </head>
 <body>
 <div class="wrap">
-  <div class="top">
+
+  <header class="top">
     <div class="brand">
       <h1>星穹旅驿 · 方块合成</h1>
-      <p>离线小游戏 · 无需联网 · 滑动合成</p>
+      <p>离线可玩 · 确定性规则 · 进度自动存档</p>
     </div>
-    <div class="close glass" id="close">✕</div>
-  </div>
+    <button class="btn btn-icon glass" id="close" type="button" aria-label="关闭游戏">✕</button>
+  </header>
 
-  <div class="scores">
-    <div class="score glass"><span>本局得分</span><b id="score">0</b></div>
+  <section class="scores" aria-label="分数">
+    <div class="score glass"><span>本局得分</span><b id="score" aria-live="polite">0</b></div>
     <div class="score best glass"><span>最高纪录</span><b id="best">0</b></div>
-  </div>
+    <div class="score glass"><span>等级 / 连击</span><b id="level">0 / 0</b></div>
+  </section>
+
+  <section class="preview" aria-label="暂存与下一块">
+    <div class="slot"><span>Hold 暂存</span><b id="hold">—</b><span class="shape" id="holdShape">◈</span></div>
+    <div class="slot"><span>下一块</span><b id="next">2</b><span class="shape" id="nextShape">●</span></div>
+  </section>
 
   <div class="board-box">
-    <div class="board glass" id="board">
-      <div class="mask" id="mask">
+    <div class="board" id="board" role="grid" aria-label="4 乘 4 方块棋盘">
+      <div class="mask" id="mask" role="dialog" aria-modal="true" aria-labelledby="maskTitle">
         <h2 id="maskTitle">旅程暂歇</h2>
         <p id="maskText">没有可合并的方块了，再开一局吧。</p>
-        <div class="btn glass primary" id="maskBtn">再来一局</div>
+        <button class="btn btn-primary glass" id="maskBtn" type="button">再来一局</button>
       </div>
     </div>
   </div>
 
   <div class="ctrl">
-    <div class="btn glass" id="undo">↶ 撤销</div>
-    <div class="btn glass primary" id="new">✦ 新游戏</div>
+    <button class="btn glass" id="undo" type="button" aria-label="撤销（还剩 3 次）">↶ 撤销</button>
+    <button class="btn glass" id="holdBtn" type="button" aria-label="暂存当前方块">⇄ 暂存</button>
+    <button class="btn glass" id="daily" type="button" aria-label="开始每日挑战">◷ 每日</button>
+    <button class="btn btn-primary glass" id="new" type="button" aria-label="开始新游戏">✦ 新局</button>
   </div>
-  <div class="hint">滑动屏幕或按方向键移动 · 相同方块合并升级<br>目标：<b>星穹方块</b>（2048） · 进度自动保存在本机</div>
+
+  <div class="achv" id="achv" aria-label="成就"></div>
+  <p class="hint">滑动 / 方向键 / WASD 移动 · <b>H</b> 暂存 · <b>U</b> 撤销 · <b>N</b> 新局 · <b>Esc</b> 关闭<br>
+    相同方块合并升级，目标「星穹方块」2048 · 方块同时用颜色与形状区分</p>
 </div>
 
 <script>
-(function(){
+(function () {
+  'use strict';
+  var G = window.XQGame;
+  var $ = function (id) { return document.getElementById(id); };
+  var board = $('board'), mask = $('mask');
+  var KEY = 'xqly_game_v2_fallback';
+
+  // 方块外观：颜色 + 名称 + 形状三重编码，不只靠颜色区分（色盲友好）
   var T = {
     2:{n:'草',s:'GRASS',c:'linear-gradient(145deg,#8ed35c,#4d9636)',t:'#123317'},
     4:{n:'土',s:'DIRT',c:'linear-gradient(145deg,#c79a6b,#8a5c38)',t:'#2e1a0c'},
@@ -126,142 +77,223 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
     4096:{n:'终焉',s:'THE END',c:'linear-gradient(145deg,#ffffff,#a9c0ff)',t:'#1b2450'},
     8192:{n:'∞',s:'INFINITY',c:'linear-gradient(145deg,#ffe9ff,#8ce8ff)',t:'#241640'}
   };
-  var KEY='xqly_merge_best', KEY_STATE='xqly_merge_state';
-  var g=[],score=0,best=0,prev=null,won=false,over=false,merged=[];
-  var board=document.getElementById('board');
-  var elScore=document.getElementById('score'),elBest=document.getElementById('best');
-  var mask=document.getElementById('mask'),maskTitle=document.getElementById('maskTitle');
-  var maskText=document.getElementById('maskText'),maskBtn=document.getElementById('maskBtn');
 
-  function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
-  function load(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
-  function clone(a){return a.map(function(r){return r.slice()})}
-  function empty(){var r=[];for(var y=0;y<4;y++)for(var x=0;x<4;x++)if(!g[y][x])r.push([y,x]);return r}
-  function add(){
-    var e=empty(); if(!e.length)return;
-    var p=e[Math.floor(Math.random()*e.length)];
-    g[p[0]][p[1]]=Math.random()<.9?2:4;
-  }
-  function compress(line){
-    var a=line.filter(function(v){return v}),out=[],gain=0,i=0;
-    while(i<a.length){
-      if(i+1<a.length&&a[i]===a[i+1]){var v=a[i]*2;out.push(v);gain+=v;i+=2;merged.push(v)}
-      else{out.push(a[i]);i++}
-    }
-    while(out.length<4)out.push(0);
-    return {line:out,gain:gain};
-  }
-  function move(dir){
-    if(over)return;
-    var before=clone(g),snapshot={g:clone(g),score:score};
-    merged=[];
-    for(var i=0;i<4;i++){
-      var line=[];
-      for(var j=0;j<4;j++){
-        if(dir==='left')line.push(g[i][j]);
-        if(dir==='right')line.push(g[i][3-j]);
-        if(dir==='up')line.push(g[j][i]);
-        if(dir==='down')line.push(g[3-j][i]);
-      }
-      var r=compress(line); score+=r.gain;
-      for(var j=0;j<4;j++){
-        if(dir==='left')g[i][j]=r.line[j];
-        if(dir==='right')g[i][3-j]=r.line[j];
-        if(dir==='up')g[j][i]=r.line[j];
-        if(dir==='down')g[3-j][i]=r.line[j];
-      }
-    }
-    var changed=false;
-    for(var y=0;y<4;y++)for(var x=0;x<4;x++)if(before[y][x]!==g[y][x]){changed=true}
-    if(!changed){merged=[];return}
-    prev=snapshot; add(); render(); save();
-    if(!won&&has(2048)){won=true;showMask('合成星穹方块！','你已抵达星穹，旅程仍可继续。','继续挑战',function(){hideMask()})}
-    else if(!canMove()){over=true;showMask('旅程暂歇','没有可合并的方块了，再开一局吧。','再来一局',newGame)}
-  }
-  function has(v){for(var y=0;y<4;y++)for(var x=0;x<4;x++)if(g[y][x]===v)return true;return false}
-  function canMove(){
-    if(empty().length)return true;
-    for(var y=0;y<4;y++)for(var x=0;x<4;x++){
-      if(x<3&&g[y][x]===g[y][x+1])return true;
-      if(y<3&&g[y][x]===g[y+1][x])return true;
-    }
-    return false;
-  }
-  function render(){
-    elScore.textContent=score;
-    if(score>best){best=score;store(KEY,best)}
-    elBest.textContent=best;
-    var cells=board.querySelectorAll('.cell');
-    for(var i=cells.length-1;i>=0;i--)cells[i].remove();
-    for(var y=0;y<4;y++)for(var x=0;x<4;x++){
-      var c=document.createElement('div');c.className='cell';
-      var v=g[y][x],t=T[v]||T[8192];
-      if(v){
-        var d=document.createElement('div');
-        d.className='tile'+(v>4?' two':'')+(merged.indexOf(v)>=0?' merge':'');
-        d.style.background=t.c;d.style.color=t.t;
-        d.innerHTML='<em>'+t.n+'</em><small>'+t.s+'</small>';
-        c.appendChild(d);
-      }
-      board.insertBefore(c,mask);
-    }
-  }
-  function save(){store(KEY_STATE,{g:g,score:score,won:won,best:best})}
-  function newGame(){
-    g=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
-    score=0;prev=null;won=false;over=false;merged=[];
-    add();add();hideMask();render();save();
-  }
-  function undo(){
-    if(!prev){toast('还没有可撤销的步骤');return}
-    g=clone(prev.g);score=prev.score;prev=null;over=false;merged=[];
-    hideMask();render();save();
-  }
-  function showMask(a,b,c,fn){maskTitle.textContent=a;maskText.textContent=b;maskBtn.textContent=c;
-    maskBtn.onclick=fn;mask.classList.add('show')}
-  function hideMask(){mask.classList.remove('show')}
-  function toast(s){var d=document.createElement('div');d.textContent=s;
-    d.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);padding:9px 16px;border-radius:20px;background:rgba(10,14,34,.9);border:1px solid rgba(255,255,255,.2);font-size:12px;z-index:9';
-    document.body.appendChild(d);setTimeout(function(){d.remove()},1200)}
-  function close(){try{if(window.Android&&Android.close)Android.close();return}catch(e){}
-    if(history.length>1)history.back()}
+  var st = null, snap = null, paused = false, pendingDir = null;
+  var daily = false, lastAch = 0;
+  var sound = false, haptics = false;   // 默认不打扰，需要用户显式打开
 
-  document.getElementById('close').onclick=close;
-  document.getElementById('new').onclick=newGame;
-  document.getElementById('undo').onclick=undo;
+  /* ---------- 存档：优先走宿主用户数据区，localStorage 仅作降级 ---------- */
+  function localSave(obj) { try { localStorage.setItem(KEY, JSON.stringify(obj)); } catch (e) {} }
+  function localLoad() { try { var v = localStorage.getItem(KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function persist() {
+    if (!st) return;
+    var obj = G.save(st);
+    localSave(obj);
+    try { XQ.post('gameSave', { data: JSON.stringify(obj) }); } catch (e) {}
+  }
+  function applyState(s) {
+    st = s; snap = G.snapshot(st);
+    hideMask(); render();
+  }
 
-  var sx=0,sy=0,active=false;
-  document.addEventListener('touchstart',function(e){var t=e.touches[0];sx=t.clientX;sy=t.clientY;active=true},{passive:true});
-  document.addEventListener('touchend',function(e){
-    if(!active)return;active=false;
-    var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
-    if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
-    move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
-  },{passive:true});
-  document.addEventListener('keydown',function(e){
-    var m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',
-      a:'left',d:'right',w:'up',s:'down'};
-    if(m[e.key]){e.preventDefault();move(m[e.key])}
+  /* ---------- 反馈 ---------- */
+  function toast(msg) {
+    var d = document.createElement('div');
+    d.className = 'toast'; d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 1400);
+  }
+  function beep(freq) {
+    if (!sound) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!beep.ctx) beep.ctx = new AC();
+      var o = beep.ctx.createOscillator(), g = beep.ctx.createGain();
+      o.type = 'sine'; o.frequency.value = freq; g.gain.value = .045;
+      o.connect(g); g.connect(beep.ctx.destination);
+      o.start(); o.stop(beep.ctx.currentTime + .07);
+    } catch (e) {}
+  }
+  function buzz(ms) {
+    if (!haptics) return;
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {}
+  }
+
+  /* ---------- 渲染 ---------- */
+  function tileEl(v, merged) {
+    var t = T[v] || T[8192];
+    var d = document.createElement('div');
+    d.className = 'tile' + (v > 4 ? ' two' : '') + (merged ? ' merge' : '');
+    d.style.background = t.c; d.style.color = t.t;
+    var e1 = document.createElement('em'); e1.textContent = t.n;
+    var e2 = document.createElement('small'); e2.textContent = t.s;
+    var e3 = document.createElement('span'); e3.className = 'shape';
+    e3.textContent = G.shapeFor(v); e3.setAttribute('aria-hidden', 'true');
+    d.appendChild(e1); d.appendChild(e2); d.appendChild(e3);
+    return d;
+  }
+  function render(mergedMax) {
+    if (!st) return;
+    $('score').textContent = st.score;
+    $('best').textContent = st.best;
+    $('level').textContent = st.level + ' / ' + st.combo;
+    $('hold').textContent = st.hold || '—';
+    $('holdShape').textContent = st.hold ? G.shapeFor(st.hold) : '◈';
+    $('next').textContent = st.next;
+    $('nextShape').textContent = G.shapeFor(st.next);
+    $('undo').setAttribute('aria-label', '撤销（还剩 ' + st.undosLeft + ' 次）');
+    $('undo').textContent = '↶ 撤销 ' + st.undosLeft;
+
+    var cells = board.querySelectorAll('.cell');
+    for (var i = cells.length - 1; i >= 0; i--) cells[i].remove();
+    for (var y = 0; y < 4; y++) for (var x = 0; x < 4; x++) {
+      var c = document.createElement('div');
+      c.className = 'cell'; c.setAttribute('role', 'gridcell');
+      var v = st.board[y][x];
+      if (v) c.appendChild(tileEl(v, !!mergedMax && v === mergedMax));
+      board.insertBefore(c, mask);
+    }
+
+    var box = $('achv');
+    box.innerHTML = '';
+    (st.achievements || []).forEach(function (a) {
+      var b = document.createElement('span'); b.className = 'badge on'; b.textContent = '✦ ' + a;
+      box.appendChild(b);
+    });
+  }
+  function showMask(title, text, btn, fn) {
+    $('maskTitle').textContent = title;
+    $('maskText').textContent = text;
+    var b = $('maskBtn'); b.textContent = btn; b.onclick = fn;
+    mask.classList.add('show'); b.focus();
+  }
+  function hideMask() { mask.classList.remove('show'); }
+
+  /* ---------- 操作 ---------- */
+  function doMove(dir) {
+    if (!st) return;
+    if (paused || mask.classList.contains('show')) { pendingDir = dir; return; }
+    var before = G.snapshot(st);
+    var r = G.move(st, dir);
+    if (!r.changed) return;
+    snap = before;
+    render(r.merges > 0 ? G.maxTile(st.board) : 0); persist();
+    if (r.merges > 0) { beep(440 + Math.min(r.merges, 6) * 70); buzz(12); }
+    if ((st.achievements || []).length > lastAch) {
+      lastAch = st.achievements.length;
+      toast('成就解锁 · ' + st.achievements[lastAch - 1]);
+    }
+    if (r.wonNow) {
+      showMask('合成星穹方块！', '你已抵达 2048，旅程仍可继续。', '继续挑战', function () {
+        st.keepPlaying = true; hideMask(); persist();
+      });
+    } else if (r.overNow) {
+      showMask('旅程暂歇', '没有可合并的方块了。本局 ' + st.score + ' 分，最高 ' + st.best + ' 分。',
+               '再来一局', function () { startNew(false); });
+    }
+  }
+  function startNew(isDaily) {
+    daily = isDaily; lastAch = 0;
+    var d = new Date();
+    var seed = isDaily
+      ? G.dailySeed(d.getFullYear(), d.getMonth() + 1, d.getDate())
+      : (Date.now() | 0);
+    applyState(G.newState(seed, st ? st.best : 0));
+    persist();
+    toast(isDaily ? '每日挑战 · ' + (d.getMonth() + 1) + '/' + d.getDate() + ' 固定种子' : '新的一局');
+  }
+  function doHold() {
+    if (!st || paused) return;
+    if (G.hold(st)) { render(); persist(); beep(330); }
+    else toast('本回合已暂存过');
+  }
+  function doUndo() {
+    if (!st || paused) return;
+    if (!snap || st.undosLeft <= 0) { toast('没有可撤销的步骤'); return; }
+    st = G.undo(st, snap);
+    snap = G.snapshot(st);
+    hideMask(); render(); persist();
+  }
+
+  /* ---------- 输入：滑动 / 鼠标拖拽 / 键盘，含简单输入缓冲 ---------- */
+  function dirOf(dx, dy) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return null;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+  }
+  var sx = 0, sy = 0, active = false;
+  document.addEventListener('touchstart', function (e) {
+    var t = e.touches[0]; sx = t.clientX; sy = t.clientY; active = true;
+  }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (!active) return; active = false;
+    var t = e.changedTouches[0], d = dirOf(t.clientX - sx, t.clientY - sy);
+    if (d) doMove(d);
+  }, { passive: true });
+  var mx = 0, my = 0, mdown = false;
+  document.addEventListener('mousedown', function (e) { mx = e.clientX; my = e.clientY; mdown = true; });
+  document.addEventListener('mouseup', function (e) {
+    if (!mdown) return; mdown = false;
+    var d = dirOf(e.clientX - mx, e.clientY - my);
+    if (d) doMove(d);
   });
-  var mx=0,my=0,mdown=false;
-  document.addEventListener('mousedown',function(e){mx=e.clientX;my=e.clientY;mdown=true});
-  document.addEventListener('mouseup',function(e){
-    if(!mdown)return;mdown=false;
-    var dx=e.clientX-mx,dy=e.clientY-my;
-    if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
-    move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+  document.addEventListener('keydown', function (e) {
+    var m = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+              a: 'left', d: 'right', w: 'up', s: 'down' };
+    if (m[e.key]) { e.preventDefault(); doMove(m[e.key]); return; }
+    if (e.key === 'h' || e.key === 'H') { e.preventDefault(); doHold(); }
+    else if (e.key === 'u' || e.key === 'U') { e.preventDefault(); doUndo(); }
+    else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); startNew(false); }
+    else if (e.key === 'Escape') { e.preventDefault(); XQ.post('closeOverlay', {}); }
   });
 
-  // 兼容不支持 aspect-ratio 的老版本 WebView：按实际宽度锁定正方形
-  function fit(){var w=board.clientWidth;if(w>0)board.style.height=w+'px'}
-  window.addEventListener('resize',fit);fit();
+  $('close').onclick = function () { persist(); XQ.post('closeOverlay', {}); };
+  $('new').onclick = function () { startNew(false); };
+  $('daily').onclick = function () { startNew(true); };
+  $('undo').onclick = doUndo;
+  $('holdBtn').onclick = doHold;
 
-  best=load(KEY,0)||0;
-  var st=load(KEY_STATE,null);
-  if(st&&st.g&&st.g.length===4&&canMoveState(st.g)){g=st.g;score=st.score||0;won=!!st.won;
-    if(st.best>best)best=st.best;over=false;render()}
-  else newGame();
-  function canMoveState(a){return a.some(function(r){return r.some(function(v){return v>0})})}
+  /* ---------- 暂停 / 恢复：来电、切页、低内存都不丢局 ---------- */
+  function pause() {
+    if (paused) return;
+    paused = true; persist();
+    showMask('已暂停', '返回后从当前局面继续。', '继续游戏', resume);
+  }
+  function resume() {
+    paused = false; hideMask();
+    if (pendingDir) { var d = pendingDir; pendingDir = null; doMove(d); }
+  }
+  document.addEventListener('xqlypause', pause);
+  document.addEventListener('xqlyresume', resume);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) pause();
+  });
+
+  /* ---------- 宿主消息 ---------- */
+  window.addEventListener('xqly', function (e) {
+    var m = e.detail;
+    if (!m || !m.type) return;
+    if (m.type === 'gameSave') {
+      // 宿主用户数据区是权威存档；本地 localStorage 只是降级副本
+      var data = m.data;
+      applyState(G.restore(data || localLoad(), 0));
+    } else if (m.type === 'state') {
+      if (m.theme) document.documentElement.setAttribute('data-theme', m.theme);
+      if (m.mode) document.documentElement.setAttribute('data-mode', m.mode);
+      if (typeof m.sound === 'boolean') sound = m.sound;
+      if (typeof m.haptics === 'boolean') haptics = m.haptics;
+    }
+  });
+
+  // 兼容不支持 aspect-ratio 的老 WebView
+  function fit() { var w = board.clientWidth; if (w > 0) board.style.height = w + 'px'; }
+  window.addEventListener('resize', fit); fit();
+
+  // 先渲染本机降级局面，保证无桥环境（普通浏览器）也立刻可玩；
+  // 宿主存档到达后由 xqly:gameSave 覆盖为权威数据。
+  applyState(G.restore(localLoad(), 0));
+  XQ.post('gameLoad', {});
+  XQ.post('getState', {});
 })();
 </script>
 </body>

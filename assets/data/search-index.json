@@ -1,0 +1,146 @@
+[
+  {
+    "id": "/forum/post/1",
+    "title": "服务器网站已上线",
+    "body": "部署完成 ✅ https://xqly.xt91tv.shop 已上线 公网实测（走真实域名 + 公网 IP，证书校验通过）： 路径 结果 / （主站 SPA） 200 · 星穹旅驿 \\ 生存服务器 /announcements /forum /staff/{码} /team 200（深层路由返回 index.html ，扫码直达可用） /admin/ 200 · pure-admin-thin /wiki/ 、 /wiki/for-new/factions/usage 200（cleanUrls 深层也命中正确页面） /api/health /api/kb/info /api/monitor/servers /api/forum/ 200，包络 code:0 正常 管理员登录 → /api/auth/me JWT 有效，role=admin SSE 智能客服（经 nginx） 44 帧、wiki 检索命中（0.63/0.61）、 [DONE] 收尾；未登录 401 TLS .xt91tv.shop ，Let's Encrypt，有效期至 2026-12-24 落位 ：1panel 静态网站（ /opt/1panel/www/sites/xqly.xt91tv.shop/index ，20MB 三套产物）；后端容器 announcement-backend 只绑 127.0.0.1:5000 （112MB 内存）；数据在 backend/data/ （SQLite + uploads，卷持久化）；crontab 03:00 kb_sync / 04:00 staff_expire （已实跑 --check 、 --dry-run ）；知识库首刷 15 篇 / 95 切片 。 顺手修掉的三个坑（都是本次才暴露的） 1. backend/Dockerfile 从来没构建成功过 ——构建上下文是仓库根，却写 COPY requirements.txt . ，文件实际在 backend/ 。旧站是 venv + rc-service，所以一直没暴露。已改成 COPY backend/requirements.txt . ，并补了根级 .dockerignore （否则 node_modules 会被塞进构建上下文）。 2. 1panel 的「静态网站」模板不生成 SPA 兜底、也不生成 include proxy/ .conf ——不补的话整个前端只有首页能开、 /api 全 502。已手工补进 conf.d 并落留档。 3. admin-frontend 本地 node_modules 缺依赖 （ highlight.js / html2canvas-pro / md-editor-v3 只在 package.json 里、没重装过）， pnpm build 直接报 Can't resolve 'highlight.js/styles/github.css' 。 pnpm install 后构建通过。 前端产物 在本机构建再投放 ——那台机器只剩约 1GB 可用内存且与 MySQL/Redis/halo/napcat 同机，跑 Vite 会 OOM 连坐，这条也写进了 AGENTS.md 。 需要你手动做两件事 - 后台管理员 ：账号 xqly-admin ，初始密码在服务器 - Git ：4 个提交已推到 GitHub main （ 613c814..6275972 ）——你的 SSH 这次通了。 ⚠️ 必须再提一次的遗留问题 你选择在这台机器上继续部署，我照做了，但两件事请记在心上： 1. 后门还在运行 （ ring04h_office_bin PID 821 + /etc/ld.so.preload → libutilkeybd.so ），root 权限、可隐藏文件与进程。 这台机器上的 backend/.env （含 DeepSeek 与硅基流动 API Key）等于对攻击者可见 ， ai.floydzero.cloud （客服的上游）也在这台机器上。 2. dpkg 现在是坏的 （ linux-image-6.8.0-110/142 卡在 half-configured）——我装 Node 时触发的，但根因是 rootkit：initramfs 钩子要复制被隐藏的那个 .so ，必然失败。 根治办法是重装系统 ；只修 dpkg 的话得先移除 /etc/ld.so.preload 并清掉 /var/adm/ ，那就等于动手清后门了——要不要做、什么时候做，你说了算。Node 我是绕开 apt 用官方压缩包装的（ /opt/node22 ），所以 apt 修不修都不影响本站在跑。",
+    "tags": [
+      "新闻活动",
+      "官方"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/forum/post/2",
+    "title": "生产环境更新完成",
+    "body": "生产环境已更新完成。核对结果如下： 本次上线内容 服务器仓库从 6275972 推进到 108be4d ，共 4 个提交（3 个此前一直未上线的代码提交 + 1 个本次文档提交）： 提交 内容 86fca81 论坛帖子删除进回收站（ status=4 ）+ 评论作者物理自删 0dd4dfb 修社区评论区「点回复没反应」（之前生产上一直是坏的） 84d1f41 后台侧边菜单按功能模块分组 108be4d 本次的部署留档与文档口径订正 执行与验证 - 备份先行 ：生产库备份到 /root/announcements.db.bak-20261005-1228 ；crontab 备份到 /root/crontab.bak- - 后端 ： docker compose up -d --build 重建，启动日志实测回收站三列迁移三条 INFO，存量旧语义自删帖 0 条 （无需担心保留期从旧 update_time 起算）；30 分钟内日志 0 个 ERROR/Traceback - 前端 ：主站产物 → index/ 、后台产物 → index/admin/ ， 旧 hash 分片一个没删 （持旧 index.html 缓存的访客不会白屏） - crontab ：新增 0 5 的 forum_purge.py 清理条目； crontab -l 与 for-deploy/crontab 留档 md5 一致 （ 68239407… ），服务器仓库已同步到同一提交， md5sum 在服务器上复核也一致 - 线上实测 ： / 、 /forum 、 /forum/recycle 、 /forum/mine 、 /announcements 、 /admin/ 、 /wiki/ 全 200； /api/forum/stats 有数据；新增的 GET /my/articles?status=4 、 POST /articles/{id}/restore 、 DELETE /articles/{id}/purge 、 DELETE /comments/{id} 无 token 均 401（路由已注册）；容器内 forum_purge.py --dry-run 正常。后端访问日志里已经能看到回收站页面在真实取数（ …&status=4 → 200 ） 两点需要你知道 1. 后台回收站 UI 仍未实现 （按你的选择这次不补）：后台文章管理页的状态下拉只有 0/1/2/3，筛不出也操作不了回收站帖。后端 admin/articles 的 status=4 与 admin/articles/{id}/restore 都已支持 ，只差页面。已记入 [TODO.md](TODO.md) 与上线清单注记，并在 [AGENTS.md](AGENTS.md) 里写明，避免下次被当漏洞\"顺手补\"。 2. GitHub 推送失败 ：本机到 github.com 的 SSH（22 与 443 都试了）目前被网络 reset，HTTPS 又没有存凭据，所以 108be4d 还只在本地（工作区干净）。为了不留脏工作区，我用 git bundle 把同一个提交对象（SHA 完全一致）经生产机中转同步到了 /opt/xqly-website ，所以你之后一旦能 push，两边天然对齐、不会冲突。等网络恢复后 git push origin main 即可；要我现在隔一会儿再重试也可以。 顺带补了一个 [.gitattributes](.gitattributes)：禁止 for-deploy/crontab 做行尾转换——本机 core.autocrlf=true ，否则哪天 git 重写该文件会把留档变成 CRLF，装进 cron 会直接报 bad minute 。",
+    "tags": [
+      "攻略教程",
+      "官方"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/forum/post/3",
+    "title": "消息中心上线啦！被点赞、被回复都会提醒你",
+    "body": "大家好！本次网站更新带来了全新的 消息中心 ，以后在社区发帖、评论、互动，再也不会错过任何消息。 🔔 新增：消息中心 点击导航栏头像左侧的 铃铛按钮 即可打开，有未读消息时会显示红色角标。消息分为三个页签： - 回复我的 ：有人评论你的文章、或回复你的评论时，你会收到通知；点击通知可直达文章并自动定位到对应评论 - 收到点赞 ：你的文章或评论收到点赞时，会收到「XXX 点赞了我的文章 / 评论」通知，点击即可跳转到被点赞的内容 - 系统通知 ：文章审核结果（通过 / 驳回及理由）、服务器公告与活动通知都在这里查看 支持单条已读、一键全部已读、删除，未读数量与导航栏角标实时同步。原来的「公告」页内容已全部并入消息中心 → 系统通知。 💡 小提示 - 在论坛收到点赞/回复后，铃铛上的红色数字就是未读消息数 - 点击消息会直接跳到对应文章，被回复的评论还会高亮闪烁，方便找到上下文 - 文章审核通过/被驳回时，也会第一时间收到通知，不用反复去\"我的文章\"里看 使用中遇到任何问题或有功能建议，欢迎在本帖下反馈，也可以到 QQ 群联系管理。祝大家建站愉快！⛏️",
+    "tags": [
+      "新闻活动",
+      "网站更新公告"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/",
+    "title": "首页",
+    "body": "星穹旅驿 生存服务器 首页 离线镜像页面",
+    "tags": [
+      "导航",
+      "首页"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/announcements",
+    "title": "公告",
+    "body": "星穹旅驿 生存服务器 公告 离线镜像页面",
+    "tags": [
+      "导航",
+      "公告"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/faction-beta",
+    "title": "阵营内测",
+    "body": "星穹旅驿 生存服务器 阵营内测 离线镜像页面",
+    "tags": [
+      "导航",
+      "指南"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/forum",
+    "title": "玩家社区",
+    "body": "星穹旅驿 生存服务器 玩家社区 离线镜像页面 [{\"id\": 1, \"code\": \"home\", \"name\": \"首页\", \"color\": \" 3b82f6\", \"sortOrder\": 0, \"isSystem\": 1, \"isHidden\": 0, \"articleCount\": 0}, {\"id\": 2, \"code\": \"recommend\", \"name\": \"推荐\", \"color\": \" f59e0b\", \"sortOrder\": 1, \"isSystem\": 1, \"isHidden\": 0, \"articleCount\": 0}, {\"id\": 3, \"code\": \"chat\", \"name\": \"闲聊灌水\", \"color\": \" 22c55e\", \"sortOrder\": 2, \"isSystem\": 0, \"isHidden\": 0, \"articleCount\": 0}, {\"id\": 4, \"code\": \"guide\", \"name\": \"攻略教程\", \"color\": \" 6366f1\", \"sortOrder\": 3, \"isSystem\": 0, \"isHidden\": 0, \"articleCount\": 1}, {\"id\": 5, \"code\": \"help\", \"name\": \"求助问答\", \"color\": \" ef4444\", \"sortOrder\": 4, \"isSystem\": 0, \"isHidden\": 0, \"articleCount\": 0}, {\"id\": 6, \"code\": \"resource\", \"name\": \"资源分享\", \"color\": \" 14b8a6\", \"sortOrder\": 5, \"isSystem\": 0, \"isHidden\": 0, \"articleCount\": 0}, {\"id\": 7, \"code\": \"news\", \"name\": \"新闻活动\", \"color\": \" ec4899\", \"sortOrder\": 6, \"isSystem\": 0, \"isHidden\": 0, \"articleCount\": 2}, {\"id\": 8, \"code\": \"suggest\", \"name\": \"功能建议\", \"color\": \" 8b5cf6\", \"sortOrder\": 7, \"isSystem\": 0, \"isHidden\": 0, \"articleCount\": 0}] [{\"id\": 1, \"name\": \"官方\", \"useCount\": 2, \"isHot\": 0, \"source\": \"user\", \"createTime\": \"2026-10-03T15:47:48\"}, {\"id\": 2, \"name\": \"网站更新公告\", \"useCount\": 1, \"isHot\": 0, \"source\": \"user\", \"createTime\": \"2026-10-09T18:55:45\"}, {\"id\": 3, \"name\": \"6\", \"useCount\": 0, \"isHot\": 0, \"source\": \"user\", \"createTime\": \"2026-10-21T11:31:23\"}] {\"articleCount\": 3, \"viewCount\": 56, \"tagCount\": 2} {\"bannerTitle\": \"星穹旅驿\", \"bannerSubtitle\": \"分享建筑、红石与开服心得，向大佬提问，一起把服务器玩出花。\", \"bannerImage\": \"/api/announcement/uploads/202610/1c2b2fdc648545b9bb5ec9c825c347fe.jpg\", \"defaultSort\": \"latest\", \"searchPlaceholder\": \"搜索帖子…\"} {\"items\": [{\"id\": 2, \"articleId\": 1, \"content\": \"66\", \"parentId\": 0, \"replyToUserId\": null, \"replyToName\": null, \"likeCount\": 1, \"liked\": false, \"status\": 1, \"author\": {\"id\": 2, \"name\": \"2281461058\", \"avatar\": null, \"badge\": null}, \"createTime\": \"2026-10-03T19:04:04\", \"replies\": [{\"id\": 3, \"articleId\": 1, \"content\": \"收到\", \"parentId\": 2, \"replyToUserId\": 2, \"replyToName\": \"2281461058\", \"likeCount\": 0, \"liked\": false, \"status\": 1, \"author\": {\"id\": 2, \"name\": \"2281461058\", \"avatar\": null, \"badge\": null}, \"createTime\": \"2026-10-03T19:46:14\"}]}, {\"id\": 1, \"articleId\": 1, \"content\": \"欢迎大家发表看法😄\", \"parentId\": 0, \"replyToUserId\": null, \"replyToName\": null, \"likeCount\": 2, \"liked\": false, \"status\": 1, \"author\": {\"id\": 1, \"name\": \"xqly-admin\", \"avatar\": null, \"badge\": \"管理员\"}, \"createTime\": \"2026-10-03T19:02:53\", \"replies\": [{\"id\": 4, \"articleId\": 1, \"content\": \"666\", \"parentId\": 1, \"replyToUserId\": 1, \"replyToName\": \"xqly-admin\", \"likeCount\": 0, \"liked\": false, \"status\": 1, \"author\": {\"id\": 2, \"name\": \"2281461058\", \"avatar\": null, \"badge\": null}, \"createTime\": \"2026-10-03T19:46:24\"}]}], \"page\": 1, \"pageSize\": 10, \"totalPages\": 1, \"total\": 2, \"hasNext\": false, \"hasPrev\": false}",
+    "tags": [
+      "导航",
+      "社区",
+      "分类",
+      "指南",
+      "离线快照",
+      "标签",
+      "统计",
+      "设置"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/kb",
+    "title": "知识库",
+    "body": "星穹旅驿 生存服务器 知识库 离线镜像页面 {\"enabled\": true, \"title\": \"星驿助手\", \"greeting\": \"你好，我是星穹旅驿的智能助手，可以问我进服、指令、规则相关的问题。\", \"faq\": [], \"model\": \"dots3-note-prev\"}",
+    "tags": [
+      "导航",
+      "指南",
+      "知识库",
+      "离线快照"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/monitor",
+    "title": "服务监控",
+    "body": "星穹旅驿 生存服务器 服务监控 离线镜像页面 {\"servers\": [{\"id\": 1, \"name\": \"主服务器\", \"address\": \"serverone.codeyun.com\", \"port\": 12000, \"display\": \"serverone.codeyun.com:12000\", \"isPrimary\": true}, {\"id\": 2, \"name\": \"ayi服务器\", \"address\": \"a8.okmc.cc\", \"port\": 45051, \"display\": \"a8.okmc.cc:45051\", \"isPrimary\": false}], \"primary\": 1}",
+    "tags": [
+      "导航",
+      "监控",
+      "状态",
+      "离线快照"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/team",
+    "title": "管理团队",
+    "body": "星穹旅驿 生存服务器 管理团队 离线镜像页面 {\"items\": [], \"total\": 0}",
+    "tags": [
+      "导航",
+      "指南",
+      "团队",
+      "离线快照"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/wiki",
+    "title": "Wiki 知识库",
+    "body": "星穹旅驿Wiki (()= {const e=localStorage.getItem(\"vitepress-theme-appearance\") \"auto\",a=window.matchMedia(\"(prefers-color-scheme: dark)\").matches;(!e e===\"auto\"?a:e===\"dark\")&&document.documentElement.classList.add(\"dark\")})(); document.documentElement.classList.toggle(\"mac\",/Mac iPhone iPod iPad/i.test(navigator.platform)); Skip to content 星穹旅驿Wiki Main Navigation 主页 资源下载（网盘） 友情链接 简幻欢—开服如此简单 麦块联机—专业的Minecraft云服务器 Appearance 星穹旅驿 Wiki Minecraft 乱世生存 · 阵营对抗服务器 Wiki 查看文档 阵营玩法 访问官网 ⚔️ 乱世生存 · 阵营对抗 服务器核心为 Purpur 1.21.11，两大阵营「黎明誓约」与「暮夜同盟」争夺星穹界的未来，你的立场决定世界的样子； 🌉 多版本 · 全平台互通 ViaVersion / ViaBackwards 支持多版本 Java 版客户端，Geyser 支持基岩版跨平台联机，PC 与手机同服游玩； 🧩 阵营玩法系统 阵营体系基于 ImprovedFactions 搭建，死亡播报、卷轴奖励等联动玩法持续研发； 🛠️ 基础设施完善 拥有服务器官网、Wiki 文档、后台管理系统与在线状态监控； 📢服务器更新公告 2026.09.14 服务器核心为 Purpur 1.21.11 ，通过 ViaVersion / Via Wiki 知识库 离线镜像页面 阵营对抗服务器 Wiki 星穹旅驿生存服logo 服务器核心为 Purpur 1 争夺星穹界的未来，你的立场决定世界的样子； 支持多版本 Java 版客户端，Geyser 支持基岩版跨平台联机，PC 与手机同服游玩； 阵营体系基于 ImprovedFactions 搭建，死亡播报、卷轴奖励等联动玩法持续研发； 拥有服务器官网、Wiki 文档、后台管理系统与在线状态监控； 离线文件：app.BLRC066r.js framework.DQXet6uu.js theme.DHVGmr1a.js for-new_factions_index.md.D3bAgR5e.js for-new_factions_index.md.D3bAgR5e.lean.js for-new_factions_mechanics.md.BtD6QN4m.js for-new_factions_usage.md.CU4oJ39p.js for-new_faq_index.md.DkgtRj3T.js for-new_visitor-guidelines_index.md.BocFwayc.js index.md.lWIUWms3.js index.md.lWIUWms3.lean.js inter-roman-latin.Di8DUHzh.woff2 style.DI9ycntL.css favicon.ico index.html visitor-guidelines.html index.html hashmap.json index.html logo.png vp-icons.css",
+    "tags": [
+      "导航",
+      "Wiki",
+      "指南",
+      "离线快照"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/login",
+    "title": "登录",
+    "body": "星穹旅驿 生存服务器 登录 离线镜像页面",
+    "tags": [
+      "导航",
+      "账户"
+    ],
+    "favorite": false
+  },
+  {
+    "id": "/register",
+    "title": "注册",
+    "body": "星穹旅驿 生存服务器 注册 离线镜像页面",
+    "tags": [
+      "导航",
+      "账户"
+    ],
+    "favorite": false
+  }
+]

@@ -47,7 +47,7 @@ public class GlassDock extends LinearLayout {
     private final float[] mag = new float[ITEMS.length];
     private final float[] magTarget = new float[ITEMS.length];
     private ValueAnimator loupe;
-    private float touchX = -1f;
+    private float touchX = -1f, touchY = -1f;
     private boolean touching = false;
 
     // 全局液态涟漪（叠在最上层）
@@ -119,6 +119,20 @@ public class GlassDock extends LinearLayout {
 
     public int getActive() { return active; }
 
+    /** 大屏/横屏：切换为竖向导航栏（Navigation Rail），避免挤压正文。 */
+    public void setVerticalRail(boolean vertical) {
+        setRail(vertical);
+        setOrientation(vertical ? VERTICAL : HORIZONTAL);
+        for (int i = 0; i < items.length; i++) {
+            LayoutParams lp = (LayoutParams) items[i].getLayoutParams();
+            if (vertical) { lp.width = LayoutParams.MATCH_PARENT; lp.height = 0; lp.weight = 1f; }
+            else { lp.width = 0; lp.height = LayoutParams.MATCH_PARENT; lp.weight = 1f; }
+            items[i].setLayoutParams(lp);
+        }
+        requestLayout();
+        invalidate();
+    }
+
     /** 设置 UI 缩放系数（平板等大屏下放大图标与文字） */
     public void setScale(float s) { scale = s; invalidate(); }
 
@@ -136,17 +150,22 @@ public class GlassDock extends LinearLayout {
     }
 
     // ------------------------------------------------------------------
-    // 放大（放大镜）逻辑
+    // 放大（放大镜）逻辑：触摸设备仅作为增强，选中态才是主要入口指示
+    private boolean rail = false;
+
+    public void setRail(boolean r) { rail = r; }
+
     private void updateTargets() {
         int n = items.length;
-        float w = getWidth();
-        if (w <= 0) return;
-        float cell = w / n;
+        float span = rail ? getHeight() : getWidth();
+        if (span <= 0) return;
+        float cell = span / n;
+        float pointer = rail ? touchY : touchX;
         for (int i = 0; i < n; i++) {
-            float cx = (i + 0.5f) * cell;
+            float center = (i + 0.5f) * cell;
             float base = (i == active) ? 1.12f : 1.0f;
-            if (touching && touchX >= 0) {
-                float dist = Math.abs(touchX - cx);
+            if (touching && pointer >= 0) {
+                float dist = Math.abs(pointer - center);
                 float x = dist / (cell * SIGMA);
                 float bump = (float) Math.exp(-x * x);          // 高斯衰减，贴近 macOS 程序坞
                 magTarget[i] = Math.max(base, 1f + LOUP * bump);
@@ -181,9 +200,10 @@ public class GlassDock extends LinearLayout {
         loupe.start();
     }
 
-    private int indexFromX(float x) {
+    private int indexFromX(float pos) {
         int n = items.length;
-        int idx = (int) (x / (getWidth() / n));
+        float span = rail ? getHeight() : getWidth();
+        int idx = span > 0 ? (int) (pos / (span / n)) : 0;
         if (idx < 0) idx = 0;
         if (idx >= n) idx = n - 1;
         return idx;
@@ -202,18 +222,18 @@ public class GlassDock extends LinearLayout {
     @Override public boolean onTouchEvent(MotionEvent e) {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                touching = true; touchX = e.getX();
+                touching = true; touchX = e.getX(); touchY = e.getY();
                 updateTargets(); startLoupe();
                 spawnRipple(e.getX(), e.getY());
                 return true;
             case MotionEvent.ACTION_MOVE:
-                touchX = e.getX();
+                touchX = e.getX(); touchY = e.getY();
                 updateTargets();
                 return true;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL: {
-                int idx = indexFromX(touchX < 0 ? e.getX() : touchX);
-                touching = false; touchX = -1f;
+                int idx = indexFromX(rail ? (touchY < 0 ? e.getY() : touchY) : (touchX < 0 ? e.getX() : touchX));
+                touching = false; touchX = -1f; touchY = -1f;
                 updateTargets(); startLoupe();
                 if (e.getActionMasked() == MotionEvent.ACTION_UP && listener != null) {
                     listener.onClick(idx, ITEMS[idx][0]);

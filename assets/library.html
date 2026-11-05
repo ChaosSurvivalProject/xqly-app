@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-mode="glass">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>星穹旅驿 · 资料</title>
+<link rel="stylesheet" href="library.css">
+<script src="bridge-shim.js"></script>
+</head>
+<body>
+<main class="page">
+
+  <header class="hd glass">
+    <div class="row">
+      <div class="grow">
+        <h1>资料与检索</h1>
+        <p class="dim">在线 / 离线统一内容模型 · 全部检索在本机完成</p>
+      </div>
+      <button class="btn btn-icon" id="close" type="button" aria-label="关闭资料页">✕</button>
+    </div>
+  </header>
+
+  <section aria-label="搜索">
+    <label class="sr-only" for="q">搜索标题、正文、标签</label>
+    <input class="field" id="q" type="search" autocomplete="off"
+           placeholder="搜索标题 / 正文 / 标签" enterkeyhint="search">
+    <div class="toolbar" style="margin-top:var(--s3)" role="group" aria-label="筛选">
+      <button class="chip" type="button" data-tag="" aria-pressed="true">全部</button>
+      <button class="chip" type="button" data-tag="公告" aria-pressed="false">公告</button>
+      <button class="chip" type="button" data-tag="指南" aria-pressed="false">指南</button>
+      <button class="chip" type="button" data-tag="社区" aria-pressed="false">社区</button>
+      <button class="chip" type="button" data-tag="Wiki" aria-pressed="false">Wiki</button>
+      <button class="chip" id="favOnly" type="button" aria-pressed="false">★ 仅收藏</button>
+      <button class="chip" id="retry" type="button">↻ 重试</button>
+    </div>
+  </section>
+
+  <!-- 每种状态都有明确文案与动作，不出现无限旋转加载 -->
+  <section class="state" id="state" role="status" aria-live="polite">
+    <div class="spinner" id="spin" aria-hidden="true"></div>
+    <h2 id="stateTitle">正在准备本地索引</h2>
+    <p id="stateText">首次打开会读取随应用内置的离线索引，无需联网。</p>
+    <button class="btn btn-primary" id="stateAction" type="button" hidden>重试</button>
+  </section>
+
+  <section aria-label="检索结果">
+    <h2 id="listTitle" style="font-size:var(--fs-sm);color:var(--dim);font-weight:600">检索结果</h2>
+    <ul class="list" id="list"></ul>
+  </section>
+
+  <section aria-label="快捷入口" id="quick" hidden>
+    <h2 style="font-size:var(--fs-sm);color:var(--dim);font-weight:600;margin-top:var(--s6)">继续阅读 / 收藏 / 最近搜索</h2>
+    <div class="toolbar" id="quickBox"></div>
+  </section>
+
+  <section aria-label="离线内容状态" style="margin-top:var(--s6)">
+    <h2 style="font-size:var(--fs-sm);color:var(--dim);font-weight:600">离线内容</h2>
+    <div class="item glass">
+      <p class="item-title" id="packTitle">随应用内置镜像</p>
+      <p class="item-snippet" id="packText">正在读取内容版本…</p>
+      <div class="item-meta">
+        <span class="badge" id="netBadge">网络状态未知</span>
+        <span class="badge" id="verBadge">v2.0.0</span>
+      </div>
+    </div>
+    <p class="dim" style="font-size:.75rem;margin-top:var(--s3)">
+      校验结果、更新记录与回退说明在「设置 → 更新中心」查看。清理缓存不会删除收藏、历史与游戏存档。
+    </p>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var q = $('q'), list = $('list'), stateBox = $('state'), quick = $('quick'), quickBox = $('quickBox');
+  var tag = '', favOnly = false, timer = null, lastQuery = '', pendingId = '';
+
+  /* ---------- 状态 UI：覆盖加载/空/无网有缓存/无网无缓存/失败/部分可用/校验失败等 ---------- */
+  // 结构：[标题, 说明, 显示加载指示, 显示动作按钮, 动作文案]
+  var STATES = {
+    loading:        ['正在准备本地索引', '首次打开会读取随应用内置的离线索引，无需联网。', true, false, ''],
+    success:        ['', '', false, false, ''],
+    empty:          ['没有找到匹配内容', '换个关键词，或清除筛选条件后再试。', false, false, ''],
+    offline_cached: ['当前离线 · 使用本机缓存', '展示的是随应用内置的离线镜像，联网后可在设置中检查更新。', false, false, ''],
+    offline_empty:  ['暂无离线内容', '本机还没有保存该内容，请联网后重试或先下载离线包。', false, true, '重试'],
+    error_retry:    ['加载失败', '内容读取出错，可以重试；已保存的内容不受影响。', false, true, '重试'],
+    partial:        ['部分内容可用', '部分条目暂时无法读取，其余内容仍可正常浏览。', false, true, '重新加载'],
+    validation:     ['内容校验未通过', '已保留当前可用版本，临时内容不会被启用。', false, true, '重新校验'],
+    permission:     ['权限被拒绝', '请在系统设置中授予所需权限后重试。', false, true, '重试'],
+    storage_low:    ['存储空间不足', '请清理空间后重试；不会删除收藏与存档。', false, true, '重试'],
+    pending_switch: ['新内容待切换', '新版本已校验完成，将在下次启动时生效。', false, false, '']
+  };
+  function showState(kind) {
+    var s = STATES[kind] || STATES.error_retry;
+    stateBox.hidden = (kind === 'success');
+    $('spin').hidden = !s[2];
+    $('stateTitle').textContent = s[0];
+    $('stateText').textContent = s[1];
+    var act = $('stateAction');
+    act.hidden = !s[3];
+    act.textContent = s[4] || '重试';
+    act.onclick = function () { doSearch(true); XQ.post('getState', {}); };
+  }
+
+  /* ---------- 渲染 ---------- */
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function renderHits(hits) {
+    list.innerHTML = '';
+    $('listTitle').textContent = '检索结果 · ' + hits.length + ' 条';
+    hits.forEach(function (h) {
+      var li = document.createElement('li');
+      li.className = 'item glass';
+      var id = String(h.id || '');
+      var title = document.createElement('p');
+      title.className = 'item-title';
+      title.textContent = h.title || id;
+      var snip = document.createElement('p');
+      snip.className = 'item-snippet';
+      // 宿主返回的 snippet 已做 HTML 转义并带 <mark> 高亮
+      snip.innerHTML = h.snippet || '';
+      var meta = document.createElement('div');
+      meta.className = 'item-meta';
+      var open = document.createElement('button');
+      open.className = 'btn'; open.type = 'button';
+      open.textContent = '阅读';
+      open.setAttribute('aria-label', '阅读：' + (h.title || id));
+      open.onclick = function () {
+        if (/^\/[A-Za-z0-9_\/-]*$/.test(id)) XQ.post('openPage', { path: id });
+      };
+      var fav = document.createElement('button');
+      fav.className = 'btn'; fav.type = 'button';
+      fav.textContent = h.favorite ? '★ 已收藏' : '☆ 收藏';
+      fav.setAttribute('aria-pressed', h.favorite ? 'true' : 'false');
+      fav.onclick = function () { XQ.post('favorite', { docId: id }); };
+      var badge = document.createElement('span');
+      badge.className = 'badge' + (h.favorite ? ' on' : '');
+      badge.textContent = h.favorite ? '已收藏' : '离线可用';
+      meta.appendChild(open); meta.appendChild(fav); meta.appendChild(badge);
+      li.appendChild(title); li.appendChild(snip); li.appendChild(meta);
+      list.appendChild(li);
+    });
+  }
+  function renderQuick(st) {
+    quickBox.innerHTML = '';
+    var items = [];
+    (st.history || []).slice(0, 3).forEach(function (h) { items.push(['继续 · ' + h, h, 'open']); });
+    (st.recentSearch || []).slice(0, 4).forEach(function (s) { items.push(['搜过 · ' + s, s, 'search']); });
+    (st.favorites || []).slice(0, 4).forEach(function (f) { items.push(['收藏 · ' + f, f, 'open']); });
+    if (!items.length) { quick.hidden = true; return; }
+    quick.hidden = false;
+    items.forEach(function (it) {
+      var b = document.createElement('button');
+      b.className = 'chip'; b.type = 'button'; b.textContent = it[0];
+      b.onclick = function () {
+        if (it[2] === 'search') { q.value = it[1]; doSearch(true); }
+        else if (/^\/[A-Za-z0-9_\/-]*$/.test(it[1])) XQ.post('openPage', { path: it[1] });
+      };
+      quickBox.appendChild(b);
+    });
+  }
+
+  /* ---------- 桥消息 ---------- */
+  function doSearch(force) {
+    var v = q.value.trim();
+    if (!force && v === lastQuery) return;
+    lastQuery = v;
+    if (!v && !favOnly && !tag) { showState('success'); list.innerHTML = ''; return; }
+    showState('loading');
+    XQ.post('search', { q: v, tag: tag, fav: favOnly });
+  }
+  q.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () { doSearch(false); }, 220);
+  });
+  q.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); doSearch(true); }
+    if (e.key === 'Escape') { e.preventDefault(); XQ.post('closeOverlay', {}); }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.chip[data-tag]'), function (b) {
+    b.onclick = function () {
+      tag = b.getAttribute('data-tag') || '';
+      Array.prototype.forEach.call(document.querySelectorAll('.chip[data-tag]'), function (o) {
+        o.setAttribute('aria-pressed', o === b ? 'true' : 'false');
+      });
+      doSearch(true);
+    };
+  });
+  $('favOnly').onclick = function () {
+    favOnly = !favOnly;
+    this.setAttribute('aria-pressed', favOnly ? 'true' : 'false');
+    doSearch(true);
+  };
+  $('retry').onclick = function () { doSearch(true); XQ.post('getState', {}); };
+  $('close').onclick = function () { XQ.post('closeOverlay', {}); };
+
+  window.addEventListener('xqly', function (e) {
+    var m = e.detail;
+    if (!m || !m.type) return;
+    switch (m.type) {
+      case 'state':
+        $('netBadge').textContent = m.offline ? '离线 · 内置镜像' : '在线直连';
+        $('verBadge').textContent = 'v' + (m.version || '2.0.0');
+        $('packText').textContent = '内容版本 ' + (m.packVersion || '内置基线')
+          + ' · 文件 ' + (m.packFiles || 0) + ' 个 · 占用 '
+          + (m.packBytes ? (Number(m.packBytes) / 1048576).toFixed(1) + ' MB' : '随 APK 内置');
+        if (m.theme) document.documentElement.setAttribute('data-theme', m.theme);
+        if (m.mode) document.documentElement.setAttribute('data-mode', m.mode);
+        renderQuick(m);
+        showState(m.offline ? 'offline_cached' : 'success');
+        break;
+      case 'appState':
+        showState(m.phase || 'success');
+        break;
+      case 'searchResult':
+        if (m.hits && m.hits.length) { showState('success'); renderHits(m.hits); }
+        else showState('empty');
+        break;
+      case 'favoriteResult':
+        doSearch(true);
+        break;
+      default:
+        break;
+    }
+  });
+
+  /* 生命周期：离开页面暂停非必要工作 */
+  function paused() { clearTimeout(timer); }
+  document.addEventListener('xqlypause', paused);
+  document.addEventListener('xqlyresume', function () { XQ.post('getState', {}); });
+
+  showState('loading');
+  XQ.post('getState', {});
+})();
+</script>
+</body>
+</html>

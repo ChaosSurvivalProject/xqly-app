@@ -1,10 +1,18 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<html lang="zh-CN" data-theme="dark" data-mode="glass"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>全站档案</title>
+<script src="bridge-shim.js"></script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--gold:#ffce86;--violet:#a87cff;--cyan:#7fd4ff;--line:rgba(255,255,255,.13);--txt:#eef3ff;--dim:rgba(210,224,255,.58)}
+/* 与 library.css / game.css 共享同一组 data-theme / data-mode 属性 */
+:root[data-theme="light"]{--txt:#131a2e;--dim:#46527a;--line:rgba(28,40,78,.18)}
+:root[data-mode="contrast"]{--dim:var(--txt);--line:rgba(190,208,255,.5)}
+:root[data-mode="eco"] .hd,:root[data-mode="eco"] .st,:root[data-mode="eco"] .card,
+:root[data-mode="contrast"] .hd,:root[data-mode="contrast"] .st,:root[data-mode="contrast"] .card{
+  backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(17,24,48,.96)}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 html,body{margin:0;padding:0;background:transparent;color:var(--txt);
   font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif}
 body{padding:4px 12px 28px;overflow-x:hidden}
@@ -119,6 +127,16 @@ function toggle(i,el){
   const b=document.getElementById('b'+i);const open=b.classList.toggle('open');
   el.textContent=open?'收起':'展开全文';
 }
-function go(p){try{Android.openPage(p)}catch(e){location.href=p}}
+// 版本化 postMessage 桥（唯一出口）；不再使用宽泛 Android.* 接口
+function go(p){ if(window.XQ) XQ.post('openPage',{path:p}); }
+function closeMe(){ if(window.XQ) XQ.post('closeOverlay',{}); }
+window.addEventListener('xqly',function(e){
+  var m=e.detail; if(!m||m.type!=='state')return;
+  if(m.theme)document.documentElement.setAttribute('data-theme',m.theme);
+  if(m.mode)document.documentElement.setAttribute('data-mode',m.mode);
+});
+if(window.XQ)XQ.post('getState',{});
+// 关闭按钮（若模板中存在 close 元素）
+(function(){ var c=document.getElementById('close'); if(c) c.onclick=closeMe; })();
 render();
 </script></body></html>

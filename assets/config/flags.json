@@ -1,0 +1,13 @@
+{
+  "online_enabled": true,
+  "auto_update": true,
+  "update_download": true,
+  "content_pack": true,
+  "bridge": true,
+  "game": true,
+  "glass_anim": true,
+  "scroll_compact": false,
+  "sound": false,
+  "haptics": true,
+  "daily_challenge": true
+}
