@@ -72,6 +72,30 @@ if [ "$EXISTS" -eq 0 ]; then
     >/dev/null
   echo "  已创建 $REPO"
 fi
-"${GIT_AUTH[@]}" push -u origin HEAD:main 2>&1 | sed 's/^/  /'
+
+# 国内到 github.com 的连接常间歇性抖动：超时甚至可能发生在推送完成之后。
+# 因此每次尝试后都回读远端 HEAD 校验，只要已同步就算成功，避免重复推送。
+LOCAL_SHA="$(git rev-parse HEAD)"
+PUSH_OK=0
+for attempt in 1 2 3 4 5; do
+  echo "  push 尝试 $attempt/5（限时 90s）"
+  if OUT="$(timeout 90 "${GIT_AUTH[@]}" push -u origin HEAD:main 2>&1)"; then
+    echo "$OUT" | sed 's/^/    /'
+    PUSH_OK=1
+    break
+  fi
+  echo "$OUT" | tail -3 | sed 's/^/    /'
+  REMOTE_SHA="$(gh api "repos/$REPO/commits/main" --jq '.sha' 2>/dev/null || true)"
+  if [ "$REMOTE_SHA" = "$LOCAL_SHA" ]; then
+    echo "    连接超时，但远端已同步至 ${LOCAL_SHA:0:7}"
+    PUSH_OK=1
+    break
+  fi
+  echo "    未同步，重试"
+done
+if [ "$PUSH_OK" -ne 1 ]; then
+  echo "  ! 推送失败（网络抖动），稍后重跑本脚本即可，本地提交已保留"
+  exit 1
+fi
 
 echo "=== 完成: https://github.com/$REPO ==="
