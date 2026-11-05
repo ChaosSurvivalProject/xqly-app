@@ -68,7 +68,7 @@ fi
 echo "=== 5/5 创建/推送 ==="
 if [ "$EXISTS" -eq 0 ]; then
   gh repo create "$REPO" "--$VIS" \
-    --description "星穹旅驿 Android 客户端：液态玻璃 UI + 全站离线镜像" \
+    --description "星穹旅驿官方 Android 客户端 · 在线/离线双模式 · 离线小游戏" \
     >/dev/null
   echo "  已创建 $REPO"
 fi

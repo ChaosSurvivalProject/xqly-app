@@ -1,15 +1,16 @@
-适用范围声明：本 MIT 许可证仅覆盖本仓库作者原创的代码与资源，即
-src/、build.sh、tools/、AndroidManifest.xml、res/ 下的自绘图标与样式。
+适用范围声明：本仓库由星穹旅驿服务器运营团队官方发布。
+本 MIT 许可证覆盖客户端自研代码，即 src/、build.sh、scripts/、tools/、
+AndroidManifest.xml、res/ 下的自绘图标与样式，以及 assets/game.html。
 
 assets/site/、assets/data/、assets/archive.html、docs/全站内容档案.html
-以及 dist/ 内 APK 中打包的第三方镜像内容，均归原站权利人所有，
-不受本许可证覆盖，亦未获得再分发授权。详见 NOTICE.md。
+以及 dist/ 内 APK 中打包的官网文字、图片、字体、商标与站点素材，
+版权归星穹旅驿运营团队所有，不在本许可证授权范围内。详见 NOTICE.md。
 
 ------------------------------------------------------------------------
 
 MIT License
 
-Copyright (c) 2026 xqly-app contributors
+Copyright (c) 2026 星穹旅驿运营团队 / XQLY Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

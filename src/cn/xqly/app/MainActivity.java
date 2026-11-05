@@ -55,13 +55,13 @@ public class MainActivity extends Activity {
     private static final int DUSK = 0xFFA87CFF;
 
     private FrameLayout root;
-    private WebView web, archiveWeb;
+    private WebView web, archiveWeb, gameWeb;
     private GlassDock dock;
     private GlassDrawable pillGlass;
     private View sidePill;
     private TextView modeLabel, pillPage;
     private View statusDot, progressFill, progressTrack;
-    private FrameLayout archiveOverlay, splash, fullscreenContainer;
+    private FrameLayout archiveOverlay, gameOverlay, splash, fullscreenContainer;
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
     private GlowView glow;
@@ -69,6 +69,7 @@ public class MainActivity extends Activity {
     private float density;
     private boolean offline = false;
     private boolean archiveOpen = false;
+    private boolean gameOpen = false;
     private String currentPath = "/";
     private String pageName = "首页";
     private int dockSide = 0;                 // 0 = 左侧（默认）, 1 = 右侧
@@ -138,6 +139,10 @@ public class MainActivity extends Activity {
         // ---- 启动页 ----
         splash = buildSplash();
         root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+
+        // ---- 离线小游戏浮层（最上层，在线/离线均可打开）----
+        gameOverlay = buildGameOverlay();
+        root.addView(gameOverlay, new FrameLayout.LayoutParams(-1, -1));
 
         setContentView(root);
 
@@ -228,13 +233,16 @@ public class MainActivity extends Activity {
         });
         pill.addView(b1);
 
-        // ③ 刷新
+        // ③ 离线小游戏（纯本地资源，在线/离线都能玩）
+        pill.addView(pillButton("◈", "游戏", v -> openGame()));
+
+        // ④ 刷新
         pill.addView(pillButton("↻", "刷新", v -> {
             web.reload();
             toast(offline ? "已刷新离线镜像" : "正在重新连接站点");
         }));
 
-        // ④ 换边
+        // ⑤ 换边
         pill.addView(pillButton("⇄", "换边", v -> switchSide()));
         return pill;
     }
@@ -350,6 +358,30 @@ public class MainActivity extends Activity {
         }, "Android");
         archiveWeb.loadUrl("file:///android_asset/archive.html");
         col.addView(archiveWeb, new LinearLayout.LayoutParams(-1, 0, 1f));
+        return overlay;
+    }
+
+    /** 离线小游戏：整页本地 HTML，无任何网络请求，飞行模式也能玩 */
+    private FrameLayout buildGameOverlay() {
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setVisibility(View.GONE);
+        overlay.setBackgroundColor(0xFF050713);
+        overlay.setClickable(true);
+
+        gameWeb = new WebView(this);
+        gameWeb.setBackgroundColor(Color.TRANSPARENT);
+        WebSettings s = gameWeb.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(true);
+        s.setLoadWithOverviewMode(true);
+        s.setUseWideViewPort(true);
+        gameWeb.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void close() { runOnUiThread(MainActivity.this::closeGame); }
+        }, "Android");
+        gameWeb.loadUrl("file:///android_asset/game.html");
+        overlay.addView(gameWeb, new FrameLayout.LayoutParams(-1, -1));
         return overlay;
     }
 
@@ -611,6 +643,7 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 交互
     private void onDockClick(int index, String path) {
+        if (gameOpen) closeGame();
         dock.setActive(index);
         if ("__ARCHIVE__".equals(path)) { openArchive(); return; }
         if (archiveOpen) closeArchive();
@@ -635,11 +668,31 @@ public class MainActivity extends Activity {
                 archiveOverlay.setVisibility(View.GONE)).start();
     }
 
+    private void openGame() {
+        if (archiveOpen) closeArchive();
+        gameOpen = true;
+        gameOverlay.setVisibility(View.VISIBLE);
+        gameOverlay.setAlpha(0f);
+        gameOverlay.animate().alpha(1f).setDuration(240).start();
+        gameOverlay.setScaleX(0.95f);
+        gameOverlay.setScaleY(0.95f);
+        gameOverlay.animate().scaleX(1f).scaleY(1f).setDuration(320).start();
+        toast(offline ? "离线小游戏 · 方块合成（无需联网）" : "方块合成 · 本地运行，不消耗流量");
+    }
+
+    private void closeGame() {
+        if (!gameOpen) return;
+        gameOpen = false;
+        gameOverlay.animate().alpha(0f).setDuration(200).withEndAction(() ->
+                gameOverlay.setVisibility(View.GONE)).start();
+    }
+
     private void toggleMode() {
         setOffline(!offline, offline ? "已切换：在线直连原站" : "已切换：离线镜像（内置全站内容）");
     }
 
     private void setOffline(boolean off, String msg) {
+        if (gameOpen) closeGame();
         offline = off;
         updateModeUi();
         toast(msg);
@@ -727,6 +780,7 @@ public class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (customView != null) { hideCustomView(); return; }
+        if (gameOpen) { closeGame(); return; }
         if (archiveOpen) { closeArchive(); return; }
         if (web.canGoBack()) { web.goBack(); return; }
         long now = System.currentTimeMillis();
@@ -739,12 +793,14 @@ public class MainActivity extends Activity {
         if (dock != null) dock.startFlow();
         if (pillGlass != null) pillGlass.startFlow();
         if (web != null) web.onResume();
+        if (gameWeb != null) gameWeb.onResume();
     }
 
     @Override protected void onPause() {
         if (dock != null) dock.stopFlow();
         if (pillGlass != null) pillGlass.stopFlow();
         if (web != null) web.onPause();
+        if (gameWeb != null) gameWeb.onPause();
         super.onPause();
     }
 

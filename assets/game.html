@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>星穹旅驿 · 方块合成</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  color:#f3f6ff;
+  background:
+    radial-gradient(900px 600px at 12% 8%,rgba(168,124,255,.30),transparent 60%),
+    radial-gradient(700px 700px at 88% 92%,rgba(255,206,134,.18),transparent 62%),
+    linear-gradient(160deg,#0b1030 0%,#050713 52%,#120b2c 100%);
+  background-attachment:fixed;
+  display:flex;align-items:center;justify-content:center;
+  user-select:none;-webkit-user-select:none;
+}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(1.5px 1.5px at 20% 18%,#fff,transparent),
+  radial-gradient(1px 1px at 70% 12%,#fff,transparent),radial-gradient(1.5px 1.5px at 84% 62%,#fff,transparent),
+  radial-gradient(1px 1px at 32% 78%,#fff,transparent),radial-gradient(1px 1px at 56% 40%,#fff,transparent),
+  radial-gradient(1.5px 1.5px at 12% 52%,#fff,transparent);}
+.glass{background:linear-gradient(150deg,rgba(255,255,255,.13),rgba(255,255,255,.05));
+  border:1px solid rgba(255,255,255,.20);
+  box-shadow:0 12px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.22);
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+.wrap{position:relative;width:min(100%,420px);height:100%;max-height:860px;
+  padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 14px);
+  display:flex;flex-direction:column;justify-content:center;gap:12px}
+.top{display:flex;align-items:center;gap:10px}
+.brand{flex:1;min-width:0}
+.brand h1{margin:0;font-size:17px;letter-spacing:.5px;font-weight:700;
+  background:linear-gradient(90deg,#ffe9b8,#e3d4ff 60%,#bfe6ff);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.brand p{margin:3px 0 0;font-size:10.5px;color:rgba(214,226,255,.72)}
+.close{width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;
+  font-size:17px;color:#e7eeff;cursor:pointer}
+.scores{display:flex;gap:10px}
+.score{flex:1;border-radius:14px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between}
+.score span{font-size:10.5px;color:rgba(214,226,255,.78)}
+.score b{font-size:19px;font-variant-numeric:tabular-nums;color:#ffe6b0}
+.score.best b{color:#c9b6ff}
+.board-box{flex:none;width:100%;display:flex;align-items:center;justify-content:center}
+.board{width:100%;aspect-ratio:1/1;border-radius:20px;padding:9px;
+  display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:8px;position:relative}
+.cell{border-radius:12px;background:rgba(255,255,255,.06);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.28);display:grid;place-items:center}
+.tile{width:100%;height:100%;border-radius:12px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;line-height:1;gap:3px;
+  box-shadow:0 4px 14px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.34);
+  animation:pop .18s ease-out}
+.tile em{font-style:normal;font-size:clamp(15px,5.2vw,23px);font-weight:800;letter-spacing:1px}
+.tile small{font-size:clamp(8px,2.2vw,10px);opacity:.82;font-weight:600}
+.tile.two{font-size:.82em}
+@keyframes pop{0%{transform:scale(.55);opacity:.2}100%{transform:scale(1);opacity:1}}
+.tile.merge{animation:merge .26s ease-out}
+@keyframes merge{0%{transform:scale(1)}45%{transform:scale(1.16)}100%{transform:scale(1)}}
+.ctrl{display:flex;gap:10px}
+.btn{flex:1;height:44px;border-radius:14px;display:grid;place-items:center;
+  font-size:12.5px;font-weight:600;color:#eaf0ff;cursor:pointer;letter-spacing:.5px}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:linear-gradient(135deg,rgba(255,206,134,.30),rgba(168,124,255,.28));
+  border-color:rgba(255,214,160,.42)}
+.hint{text-align:center;font-size:10.5px;color:rgba(200,214,255,.62);line-height:1.6}
+.hint b{color:#ffe0a8;font-weight:600}
+.mask{position:absolute;inset:0;border-radius:20px;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;text-align:center;
+  background:rgba(6,8,22,.80);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.mask.show{display:flex}
+.mask h2{margin:0;font-size:22px;background:linear-gradient(90deg,#ffe9b8,#c9b6ff);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.mask p{margin:0;font-size:12px;color:rgba(214,226,255,.8);padding:0 24px;line-height:1.7}
+.mask .btn{width:150px;flex:none}
+@media (max-height:640px){.brand p,.hint{display:none}.wrap{gap:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <h1>星穹旅驿 · 方块合成</h1>
+      <p>离线小游戏 · 无需联网 · 滑动合成</p>
+    </div>
+    <div class="close glass" id="close">✕</div>
+  </div>
+
+  <div class="scores">
+    <div class="score glass"><span>本局得分</span><b id="score">0</b></div>
+    <div class="score best glass"><span>最高纪录</span><b id="best">0</b></div>
+  </div>
+
+  <div class="board-box">
+    <div class="board glass" id="board">
+      <div class="mask" id="mask">
+        <h2 id="maskTitle">旅程暂歇</h2>
+        <p id="maskText">没有可合并的方块了，再开一局吧。</p>
+        <div class="btn glass primary" id="maskBtn">再来一局</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrl">
+    <div class="btn glass" id="undo">↶ 撤销</div>
+    <div class="btn glass primary" id="new">✦ 新游戏</div>
+  </div>
+  <div class="hint">滑动屏幕或按方向键移动 · 相同方块合并升级<br>目标：<b>星穹方块</b>（2048） · 进度自动保存在本机</div>
+</div>
+
+<script>
+(function(){
+  var T = {
+    2:{n:'草',s:'GRASS',c:'linear-gradient(145deg,#8ed35c,#4d9636)',t:'#123317'},
+    4:{n:'土',s:'DIRT',c:'linear-gradient(145deg,#c79a6b,#8a5c38)',t:'#2e1a0c'},
+    8:{n:'石',s:'STONE',c:'linear-gradient(145deg,#a9b3c2,#6d7889)',t:'#1b2230'},
+    16:{n:'煤',s:'COAL',c:'linear-gradient(145deg,#69717e,#333a46)',t:'#ffffff'},
+    32:{n:'铁',s:'IRON',c:'linear-gradient(145deg,#e6ebf3,#aeb9c9)',t:'#2b3340'},
+    64:{n:'金',s:'GOLD',c:'linear-gradient(145deg,#ffdd8f,#e0a43a)',t:'#4a2c05'},
+    128:{n:'红',s:'REDSTONE',c:'linear-gradient(145deg,#ff9d8c,#d64a3e)',t:'#3d0d08'},
+    256:{n:'钻',s:'DIAMOND',c:'linear-gradient(145deg,#8cecf0,#2fa9c9)',t:'#063b48'},
+    512:{n:'翠',s:'EMERALD',c:'linear-gradient(145deg,#79edb3,#28a674)',t:'#043824'},
+    1024:{n:'合金',s:'NETHERITE',c:'linear-gradient(145deg,#d3b4ff,#7d55d4)',t:'#22103f'},
+    2048:{n:'星穹',s:'ASTRAL',c:'linear-gradient(145deg,#fff0bd,#ffb43e)',t:'#4a2600'},
+    4096:{n:'终焉',s:'THE END',c:'linear-gradient(145deg,#ffffff,#a9c0ff)',t:'#1b2450'},
+    8192:{n:'∞',s:'INFINITY',c:'linear-gradient(145deg,#ffe9ff,#8ce8ff)',t:'#241640'}
+  };
+  var KEY='xqly_merge_best', KEY_STATE='xqly_merge_state';
+  var g=[],score=0,best=0,prev=null,won=false,over=false,merged=[];
+  var board=document.getElementById('board');
+  var elScore=document.getElementById('score'),elBest=document.getElementById('best');
+  var mask=document.getElementById('mask'),maskTitle=document.getElementById('maskTitle');
+  var maskText=document.getElementById('maskText'),maskBtn=document.getElementById('maskBtn');
+
+  function store(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  function load(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+  function clone(a){return a.map(function(r){return r.slice()})}
+  function empty(){var r=[];for(var y=0;y<4;y++)for(var x=0;x<4;x++)if(!g[y][x])r.push([y,x]);return r}
+  function add(){
+    var e=empty(); if(!e.length)return;
+    var p=e[Math.floor(Math.random()*e.length)];
+    g[p[0]][p[1]]=Math.random()<.9?2:4;
+  }
+  function compress(line){
+    var a=line.filter(function(v){return v}),out=[],gain=0,i=0;
+    while(i<a.length){
+      if(i+1<a.length&&a[i]===a[i+1]){var v=a[i]*2;out.push(v);gain+=v;i+=2;merged.push(v)}
+      else{out.push(a[i]);i++}
+    }
+    while(out.length<4)out.push(0);
+    return {line:out,gain:gain};
+  }
+  function move(dir){
+    if(over)return;
+    var before=clone(g),snapshot={g:clone(g),score:score};
+    merged=[];
+    for(var i=0;i<4;i++){
+      var line=[];
+      for(var j=0;j<4;j++){
+        if(dir==='left')line.push(g[i][j]);
+        if(dir==='right')line.push(g[i][3-j]);
+        if(dir==='up')line.push(g[j][i]);
+        if(dir==='down')line.push(g[3-j][i]);
+      }
+      var r=compress(line); score+=r.gain;
+      for(var j=0;j<4;j++){
+        if(dir==='left')g[i][j]=r.line[j];
+        if(dir==='right')g[i][3-j]=r.line[j];
+        if(dir==='up')g[j][i]=r.line[j];
+        if(dir==='down')g[3-j][i]=r.line[j];
+      }
+    }
+    var changed=false;
+    for(var y=0;y<4;y++)for(var x=0;x<4;x++)if(before[y][x]!==g[y][x]){changed=true}
+    if(!changed){merged=[];return}
+    prev=snapshot; add(); render(); save();
+    if(!won&&has(2048)){won=true;showMask('合成星穹方块！','你已抵达星穹，旅程仍可继续。','继续挑战',function(){hideMask()})}
+    else if(!canMove()){over=true;showMask('旅程暂歇','没有可合并的方块了，再开一局吧。','再来一局',newGame)}
+  }
+  function has(v){for(var y=0;y<4;y++)for(var x=0;x<4;x++)if(g[y][x]===v)return true;return false}
+  function canMove(){
+    if(empty().length)return true;
+    for(var y=0;y<4;y++)for(var x=0;x<4;x++){
+      if(x<3&&g[y][x]===g[y][x+1])return true;
+      if(y<3&&g[y][x]===g[y+1][x])return true;
+    }
+    return false;
+  }
+  function render(){
+    elScore.textContent=score;
+    if(score>best){best=score;store(KEY,best)}
+    elBest.textContent=best;
+    var cells=board.querySelectorAll('.cell');
+    for(var i=cells.length-1;i>=0;i--)cells[i].remove();
+    for(var y=0;y<4;y++)for(var x=0;x<4;x++){
+      var c=document.createElement('div');c.className='cell';
+      var v=g[y][x],t=T[v]||T[8192];
+      if(v){
+        var d=document.createElement('div');
+        d.className='tile'+(v>4?' two':'')+(merged.indexOf(v)>=0?' merge':'');
+        d.style.background=t.c;d.style.color=t.t;
+        d.innerHTML='<em>'+t.n+'</em><small>'+t.s+'</small>';
+        c.appendChild(d);
+      }
+      board.insertBefore(c,mask);
+    }
+  }
+  function save(){store(KEY_STATE,{g:g,score:score,won:won,best:best})}
+  function newGame(){
+    g=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+    score=0;prev=null;won=false;over=false;merged=[];
+    add();add();hideMask();render();save();
+  }
+  function undo(){
+    if(!prev){toast('还没有可撤销的步骤');return}
+    g=clone(prev.g);score=prev.score;prev=null;over=false;merged=[];
+    hideMask();render();save();
+  }
+  function showMask(a,b,c,fn){maskTitle.textContent=a;maskText.textContent=b;maskBtn.textContent=c;
+    maskBtn.onclick=fn;mask.classList.add('show')}
+  function hideMask(){mask.classList.remove('show')}
+  function toast(s){var d=document.createElement('div');d.textContent=s;
+    d.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);padding:9px 16px;border-radius:20px;background:rgba(10,14,34,.9);border:1px solid rgba(255,255,255,.2);font-size:12px;z-index:9';
+    document.body.appendChild(d);setTimeout(function(){d.remove()},1200)}
+  function close(){try{if(window.Android&&Android.close)Android.close();return}catch(e){}
+    if(history.length>1)history.back()}
+
+  document.getElementById('close').onclick=close;
+  document.getElementById('new').onclick=newGame;
+  document.getElementById('undo').onclick=undo;
+
+  var sx=0,sy=0,active=false;
+  document.addEventListener('touchstart',function(e){var t=e.touches[0];sx=t.clientX;sy=t.clientY;active=true},{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(!active)return;active=false;
+    var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+    move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+  },{passive:true});
+  document.addEventListener('keydown',function(e){
+    var m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',
+      a:'left',d:'right',w:'up',s:'down'};
+    if(m[e.key]){e.preventDefault();move(m[e.key])}
+  });
+  var mx=0,my=0,mdown=false;
+  document.addEventListener('mousedown',function(e){mx=e.clientX;my=e.clientY;mdown=true});
+  document.addEventListener('mouseup',function(e){
+    if(!mdown)return;mdown=false;
+    var dx=e.clientX-mx,dy=e.clientY-my;
+    if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+    move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+  });
+
+  // 兼容不支持 aspect-ratio 的老版本 WebView：按实际宽度锁定正方形
+  function fit(){var w=board.clientWidth;if(w>0)board.style.height=w+'px'}
+  window.addEventListener('resize',fit);fit();
+
+  best=load(KEY,0)||0;
+  var st=load(KEY_STATE,null);
+  if(st&&st.g&&st.g.length===4&&canMoveState(st.g)){g=st.g;score=st.score||0;won=!!st.won;
+    if(st.best>best)best=st.best;over=false;render()}
+  else newGame();
+  function canMoveState(a){return a.some(function(r){return r.some(function(v){return v>0})})}
+})();
+</script>
+</body>
+</html>
