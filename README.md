@@ -79,6 +79,29 @@ python3 tools/redact.py --apply    # 确认后执行脱敏
 
 `tools/mirror.py` 会重新抓取静态资源（含 Vite 懒加载 chunk）、渲染各路由提取正文、保存 API 快照，并用浏览器网络响应监听做兜底，输出到 `assets/`。
 
+## 发布与更新
+
+发布通过 `scripts/publish.sh` 完成，脚本**幂等，可反复运行**：首次创建仓库，之后推送增量更新。
+
+```bash
+export GH_TOKEN=<你的 Personal Access Token>
+bash scripts/publish.sh
+
+# 自定义提交信息
+COMMIT_MSG="docs: 更新说明文档" bash scripts/publish.sh
+```
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `XQLY_REPO` | `ChaosSurvivalProject/xqly-app` | 目标仓库 |
+| `XQLY_VISIBILITY` | `public` | 新建仓库可见性 |
+| `COMMIT_MSG` | `chore: 更新星穹旅驿 Android 客户端内容` | 提交信息 |
+| `GIT_NAME` / `GIT_EMAIL` | `xqly-app` | 提交身份 |
+
+安全设计：令牌**只在运行时从环境变量读取**，不写入仓库文件、`.git/config` 或任何持久化位置；git 认证头只对 `github.com` 主机生效，重定向到 `objects.githubusercontent.com` 等其它主机时不会携带。
+
+若 `git push` 因网络抖动超时，重跑一次即可；国内网络可先运行 `github-accelerator` 的 `check` / `apply` 修复 hosts。
+
 ## 目录结构
 
 ```
