@@ -147,11 +147,20 @@ cmp               → APK 内 assets/MANIFEST.json 与源码树字节一致
 
 ---
 
-## 8. 发布后校验（执行后填写）
+## 8. 发布后校验（已执行）
 
-发布流程见 [RELEASE.md](RELEASE.md)。发布完成后需核对：
+发布流程见 [RELEASE.md](RELEASE.md)。以下均为发布后实际回读的结果：
 
-- GitHub Release `v2.0.0` 非 draft、非 prerelease，`html_url` 指向 `ChaosSurvivalProject/xqly-app`。
-- 资产名 `xqly-app-v2.0.0.apk`（`UpdateVerdict.validAssetName` 要求与 tag 一致）。
-- 资产 `digest` 与本地 SHA-256 `866c6cc20ec8eca8ecd6d4e0814026e4f809e47fe59368553681c54699c593d6` 一致。
-- 资产大小 6,657,364 bytes，下载主机在 `DOWNLOAD_HOSTS` 白名单内。
+| 校验项 | 结果 |
+|---|---|
+| 源码提交 | `a371377` 推送至 `main`，远端 HEAD 与本地一致；回滚点 `pre-final-upgrade` 保留 |
+| Release tag | `v2.0.0`，`draft=false`、`prerelease=false` |
+| `html_url` | `https://github.com/ChaosSurvivalProject/xqly-app/releases/tag/v2.0.0` — 钉扎发布者通过 |
+| 资产名 | `xqly-app-v2.0.0.apk` — `validAssetName` 与 tag 一致 |
+| 资产大小 | 6,657,364 bytes，与本地产物一致 |
+| 资产 digest | `sha256:866c6cc20ec8eca8ecd6d4e0814026e4f809e47fe59368553681c54699c593d6` — 与本地 SHA-256 字节级一致 |
+| 下载主机 | `github.com`，在 `DOWNLOAD_HOSTS` 白名单内 |
+| `/releases/latest` | 指向 `v2.0.0`（自动更新链可发现） |
+| **端到端解析** | 用客户端真实的 `UpdateVerdict.parseRelease` 直接解析线上 `/releases/latest` 原始 JSON：`parseError = OK`、`assetValid = true`、`hostOK = true`、`digest` / `size` 读取正确 |
+
+最后一项不是模拟数据：校验程序在标准 JVM 上加载了本仓库编译出的 `core` 类，输入是 GitHub API 实时返回的 JSON。这意味着 v2.0.0 客户端启动后查询更新时，能正确解析并进入后续的下载与签名/摘要校验流程。
