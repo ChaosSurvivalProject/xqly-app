@@ -54,6 +54,18 @@ public class MainActivity extends Activity {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
 
+    public static final String VERSION_NAME = "1.2.0";
+    public static final int VERSION_CODE = 3;
+
+    /** 版本比对结果载体（由 Updater 填充后回传 UI 线程） */
+    public static class VersionResult {
+        final String tag, name, body, apkUrl;
+        final int cmp;
+        VersionResult(String tag, String name, String body, String apkUrl, int cmp) {
+            this.tag = tag; this.name = name; this.body = body; this.apkUrl = apkUrl; this.cmp = cmp;
+        }
+    }
+
     private FrameLayout root;
     private WebView web, archiveWeb, gameWeb;
     private GlassDock dock;
@@ -67,9 +79,12 @@ public class MainActivity extends Activity {
     private GlowView glow;
 
     private float density;
+    private float uiScale = 1f;            // 平板/大屏缩放系数（基于屏幕最短边）
+    private boolean isTablet = false;
     private boolean offline = false;
     private boolean archiveOpen = false;
     private boolean gameOpen = false;
+    private Updater updater;
     private String currentPath = "/";
     private String pageName = "首页";
     private int dockSide = 0;                 // 0 = 左侧（默认）, 1 = 右侧
@@ -81,6 +96,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         density = getResources().getDisplayMetrics().density;
+        computeScale();
         prefs = getSharedPreferences("xqly_ui", MODE_PRIVATE);
         dockSide = prefs.getInt("dock_side", 0);   // 默认左侧
 
@@ -100,7 +116,7 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         FrameLayout.LayoutParams webLp = new FrameLayout.LayoutParams(-1, -1);
         root.addView(web, webLp);
-        web.setPadding(0, 0, 0, dp(88));
+        web.setPadding(0, 0, 0, sdp(82));
         web.setBackgroundColor(0xFF050713);
         configureWeb(web);
 
@@ -124,11 +140,18 @@ public class MainActivity extends Activity {
 
         // ---- 底部液态玻璃 Dock ----
         dock = new GlassDock(this);
-        FrameLayout.LayoutParams dockLp = new FrameLayout.LayoutParams(-1, dp(72));
+        dock.setScale(uiScale);
+        FrameLayout.LayoutParams dockLp = new FrameLayout.LayoutParams(-1, sdp(72));
         dockLp.gravity = Gravity.BOTTOM;
-        dockLp.leftMargin = dp(10);
-        dockLp.rightMargin = dp(10);
-        dockLp.bottomMargin = dp(10);
+        if (isTablet) {
+            // 平板：Dock 居中限宽，避免在大屏上拉成一条细长的横条
+            dockLp.width = sdp(440);
+            dockLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        } else {
+            dockLp.leftMargin = sdp(10);
+            dockLp.rightMargin = sdp(10);
+        }
+        dockLp.bottomMargin = sdp(10);
         root.addView(dock, dockLp);
         dock.setOnDockClick((index, path) -> onDockClick(index, path));
 
@@ -162,20 +185,38 @@ public class MainActivity extends Activity {
         syncTitle();
         root.post(() -> applySide(false));
         web.loadUrl(BASE + "/");
+
+        // ---- 自动更新：启动后静默检查（可在设置中关闭）----
+        updater = new Updater(this);
+        if (prefs.getBoolean("auto_update", true) && isNetworkAvailable()) {
+            updater.checkForUpdates(false);
+        }
     }
 
+    /** 根据屏幕最短边计算缩放系数：手机为 1.0，平板逐步放大并标记 isTablet */
+    private void computeScale() {
+        float wDp = getResources().getDisplayMetrics().widthPixels / density;
+        float hDp = getResources().getDisplayMetrics().heightPixels / density;
+        float minSide = Math.min(wDp, hDp);
+        isTablet = minSide >= 600f;
+        uiScale = Math.max(1f, Math.min(1.7f, minSide / 430f));
+    }
+
+    /** 受 uiScale 影响的 dp 换算（用于 UI 装饰层，站点内容本身响应式） */
+    private int sdp(float v) { return dp(v * uiScale); }
+
     // ---------------------------------------------------------------- UI
-    /** 侧边药丸：宽 46dp 的竖向胶囊，默认贴左，可一键换到右侧 */
+    /** 侧边药丸：宽约 46dp 的竖向胶囊，默认贴左，可一键换到右侧（随屏幕缩放） */
     private FrameLayout.LayoutParams sidePillParams() {
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(46), -2);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(sdp(46), -2);
         lp.gravity = Gravity.LEFT | Gravity.CENTER_VERTICAL;
-        lp.leftMargin = dp(8);
+        lp.leftMargin = sdp(8);
         return lp;
     }
 
     private void applySide(boolean animate) {
         if (sidePill == null || root.getWidth() <= 0) return;
-        float tx = dockSide == 1 ? (root.getWidth() - sidePill.getWidth() - dp(16)) : 0f;
+        float tx = dockSide == 1 ? (root.getWidth() - sidePill.getWidth() - sdp(16)) : 0f;
         if (animate) {
             sidePill.animate().translationX(tx).setDuration(420)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f)).start();
@@ -195,7 +236,7 @@ public class MainActivity extends Activity {
         LinearLayout pill = new LinearLayout(this);
         pill.setOrientation(LinearLayout.VERTICAL);
         pill.setGravity(Gravity.CENTER_HORIZONTAL);
-        pill.setPadding(dp(3), dp(9), dp(3), dp(9));
+        pill.setPadding(sdp(3), sdp(9), sdp(3), sdp(9));
 
         pillGlass = new GlassDrawable(dp(23), DUSK, true);
         pillGlass.setSmoked(true);   // 官网首页为浅色，需深底保证可读性
@@ -215,13 +256,14 @@ public class MainActivity extends Activity {
                 new int[]{0xFF59E6A8, 0xFF4BD6FF});
         sd.setShape(GradientDrawable.OVAL);
         statusDot.setBackground(sd);
-        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(dp(6), dp(6));
-        sLp.bottomMargin = dp(4);
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(sdp(6), sdp(6));
+        sLp.bottomMargin = sdp(4);
         pill.addView(statusDot, sLp);
 
-        // ① 品牌 / 当前页面（点击显示完整信息）
+        // ① 品牌 / 当前页面（点击显示完整信息；长按打开设置）
         View b0 = pillButton("✦", "首页", v ->
                 toast("星穹旅驿 · " + pageName + " · " + (offline ? "离线镜像" : "在线直连")));
+        b0.setOnLongClickListener(v -> { openSettings(); return true; });
         pillPage = (TextView) ((LinearLayout) b0).getChildAt(1);
         pill.addView(b0);
 
@@ -244,7 +286,53 @@ public class MainActivity extends Activity {
 
         // ⑤ 换边
         pill.addView(pillButton("⇄", "换边", v -> switchSide()));
+
+        // ⑥ 检查更新（拉取 GitHub 最新 Release）
+        pill.addView(pillButton("⇧", "更新", v -> {
+            toast("正在检查更新…");
+            updater.checkForUpdates(true);
+        }));
         return pill;
+    }
+
+    /** 设置面板：自动更新开关 + 检查更新（长按品牌 StarMark 或点「更新」可进入） */
+    private void openSettings() {
+        boolean cur = prefs.getBoolean("auto_update", true);
+        android.widget.LinearLayout lay = new android.widget.LinearLayout(this);
+        lay.setOrientation(android.widget.LinearLayout.VERTICAL);
+        lay.setPadding(dp(20), dp(16), dp(20), dp(8));
+
+        TextView ver = new TextView(this);
+        ver.setText("当前版本：v" + VERSION_NAME);
+        ver.setTextColor(0xFFDCE6FF);
+        ver.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        lay.addView(ver);
+
+        android.widget.CheckBox cb = new android.widget.CheckBox(this);
+        cb.setText("自动检查更新（发现新版本自动提示）");
+        cb.setChecked(cur);
+        cb.setTextColor(0xFFDCE6FF);
+        cb.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        cb.setPadding(0, dp(10), 0, dp(4));
+        lay.addView(cb);
+
+        TextView hint = new TextView(this);
+        hint.setText("更新包来自 GitHub 官方仓库 ChaosSurvivalProject/xqly-app，发布即取最新 Release");
+        hint.setTextColor(Color.argb(150, 200, 210, 240));
+        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        hint.setPadding(0, dp(4), 0, dp(6));
+        lay.addView(hint);
+
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this);
+        b.setTitle("设置");
+        b.setView(lay);
+        b.setPositiveButton("保存", (d, w) -> {
+            prefs.edit().putBoolean("auto_update", cb.isChecked()).apply();
+            toast(cb.isChecked() ? "已开启自动更新" : "已关闭自动更新");
+        });
+        b.setNegativeButton("检查更新", (d, w) -> updater.checkForUpdates(true));
+        b.setNeutralButton("取消", null);
+        b.show();
     }
 
     private View pillButton(String icon, String label, View.OnClickListener click) {
@@ -254,13 +342,13 @@ public class MainActivity extends Activity {
         b.setClickable(true);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.TRANSPARENT);
-        bg.setCornerRadius(dp(15));
+        bg.setCornerRadius(sdp(15));
         b.setBackground(bg);
 
         TextView ic = new TextView(this);
         ic.setText(icon);
         ic.setTextColor(0xFFE9F0FF);
-        ic.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        ic.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15 * uiScale);
         ic.setGravity(Gravity.CENTER);
         ic.setIncludeFontPadding(false);
         b.addView(ic, new LinearLayout.LayoutParams(-1, -2));
@@ -268,13 +356,13 @@ public class MainActivity extends Activity {
         TextView tx = new TextView(this);
         tx.setText(label);
         tx.setTextColor(Color.argb(190, 222, 234, 255));
-        tx.setTextSize(TypedValue.COMPLEX_UNIT_SP, 8);
+        tx.setTextSize(TypedValue.COMPLEX_UNIT_SP, 8 * uiScale);
         tx.setGravity(Gravity.CENTER);
         tx.setSingleLine(true);
         tx.setIncludeFontPadding(false);
         b.addView(tx, new LinearLayout.LayoutParams(-1, -2));
 
-        b.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(42)));
+        b.setLayoutParams(new LinearLayout.LayoutParams(-1, sdp(42)));
         b.setOnClickListener(click);
         b.setOnTouchListener((v, e) -> {
             int a = e.getAction();
@@ -308,8 +396,8 @@ public class MainActivity extends Activity {
         });
         card.post(cg::startFlow);
         FrameLayout.LayoutParams cLp = new FrameLayout.LayoutParams(-1, -1);
-        cLp.leftMargin = dp(10); cLp.rightMargin = dp(10);
-        cLp.topMargin = dp(10); cLp.bottomMargin = dp(92);
+        cLp.leftMargin = sdp(10); cLp.rightMargin = sdp(10);
+        cLp.topMargin = sdp(10); cLp.bottomMargin = sdp(92);
         overlay.addView(card, cLp);
 
         LinearLayout col = new LinearLayout(this);
@@ -404,40 +492,40 @@ public class MainActivity extends Activity {
             @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
         });
         card.post(sg::startFlow);
-        FrameLayout.LayoutParams cLp = new FrameLayout.LayoutParams(dp(250), dp(230));
+        FrameLayout.LayoutParams cLp = new FrameLayout.LayoutParams(sdp(250), sdp(230));
         cLp.gravity = Gravity.CENTER;
         sp.addView(card, cLp);
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.setPadding(dp(20), dp(28), dp(20), dp(24));
+        col.setPadding(sdp(20), sdp(28), sdp(20), sdp(24));
         card.addView(col, new FrameLayout.LayoutParams(-1, -1));
 
         StarMark mark = new StarMark(this);
-        col.addView(mark, new LinearLayout.LayoutParams(dp(64), dp(64)));
+        col.addView(mark, new LinearLayout.LayoutParams(sdp(64), sdp(64)));
         TextView name = new TextView(this);
         name.setText("星穹旅驿");
         name.setTextColor(0xFFF6F8FF);
-        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22 * uiScale);
         name.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         LinearLayout.LayoutParams nLp = new LinearLayout.LayoutParams(-2, -2);
-        nLp.topMargin = dp(14);
+        nLp.topMargin = sdp(14);
         col.addView(name, nLp);
         TextView sub = new TextView(this);
         sub.setText("阵营对抗 · 乱世生存");
         sub.setTextColor(Color.argb(165, 220, 228, 255));
-        sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f);
+        sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f * uiScale);
         sub.setLetterSpacing(0.18f);
         LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(-2, -2);
-        sLp.topMargin = dp(5);
+        sLp.topMargin = sdp(5);
         col.addView(sub, sLp);
         TextView loading = new TextView(this);
         loading.setText("正在连接星穹界…");
         loading.setTextColor(0xFFFFD99A);
-        loading.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9.5f);
+        loading.setTextSize(TypedValue.COMPLEX_UNIT_SP, 9.5f * uiScale);
         LinearLayout.LayoutParams lLp = new LinearLayout.LayoutParams(-2, -2);
-        lLp.topMargin = dp(22);
+        lLp.topMargin = sdp(22);
         col.addView(loading, lLp);
         return sp;
     }
@@ -775,7 +863,7 @@ public class MainActivity extends Activity {
         } catch (Exception e) { return false; }
     }
 
-    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+    public void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
     private int dp(float v) { return (int) (v * density + 0.5f); }
 
     @Override public void onBackPressed() {

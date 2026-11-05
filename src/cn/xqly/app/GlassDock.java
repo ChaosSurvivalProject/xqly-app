@@ -32,6 +32,7 @@ public class GlassDock extends LinearLayout {
     private final GlassDrawable glass;
     private OnDockClick listener;
     private int active = 0;
+    private float scale = 1f;
 
     public GlassDock(Context ctx) {
         super(ctx);
@@ -80,6 +81,9 @@ public class GlassDock extends LinearLayout {
 
     public int getActive() { return active; }
 
+    /** 设置 UI 缩放系数（平板等大屏下放大图标与文字） */
+    public void setScale(float s) { scale = s; invalidate(); }
+
     public void startFlow() { glass.startFlow(); }
     public void stopFlow() { glass.stopFlow(); }
 
@@ -109,7 +113,6 @@ public class GlassDock extends LinearLayout {
             icon.setStrokeCap(Paint.Cap.ROUND);
             icon.setStrokeJoin(Paint.Join.ROUND);
             text.setTextAlign(Paint.Align.CENTER);
-            text.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10.5f, ctx.getResources().getDisplayMetrics()));
             text.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
             dot.setStyle(Paint.Style.FILL);
         }
@@ -145,12 +148,12 @@ public class GlassDock extends LinearLayout {
                 c.drawCircle(rx, ry, maxR * ripple, ripplePaint);
             }
 
-            float iconSize = 24 * density;
+            float iconSize = 24 * density * scale;
             float iconCy = h * 0.40f;
 
             int col = isActive ? 0xFFFFE1A8 : Color.argb(168, 226, 234, 255);
             icon.setColor(col);
-            icon.setStrokeWidth((isActive ? 2.0f : 1.7f) * density);
+            icon.setStrokeWidth((isActive ? 2.0f : 1.7f) * density * scale);
             icon.setShader(null);
             if (isActive) {
                 icon.setShader(new LinearGradient(cx - iconSize / 2, iconCy - iconSize / 2,
@@ -160,15 +163,17 @@ public class GlassDock extends LinearLayout {
             drawIcon(c, index, cx, iconCy, iconSize, icon, col);
             icon.setShader(null);
 
+            text.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10.5f * scale, getResources().getDisplayMetrics()));
             text.setColor(isActive ? 0xFFFFE7BC : Color.argb(150, 220, 230, 255));
             Paint.FontMetrics fm = text.getFontMetrics();
             c.drawText(label, cx, h * 0.80f - (fm.ascent + fm.descent) / 2f, text);
 
             if (isActive) {
-                dot.setShader(new LinearGradient(cx - 9 * density, 0, cx + 9 * density, 0,
+                float d = 9 * density * scale;
+                dot.setShader(new LinearGradient(cx - d, 0, cx + d, 0,
                         new int[]{0xFFA87CFF, 0xFFFFCE86, 0xFFFFCE86, 0xFFA87CFF}, null, Shader.TileMode.CLAMP));
-                c.drawRoundRect(new RectF(cx - 9 * density, h - 5.5f * density, cx + 9 * density, h - 3.5f * density),
-                        2 * density, 2 * density, dot);
+                c.drawRoundRect(new RectF(cx - d, h - 5.5f * density * scale, cx + d, h - 3.5f * density * scale),
+                        2 * density * scale, 2 * density * scale, dot);
                 dot.setShader(null);
             }
         }
