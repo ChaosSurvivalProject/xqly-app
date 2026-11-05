@@ -1,0 +1,239 @@
+name: 双平台发布（草稿）
+
+# 由版本标签触发；只创建 **草稿**，不自动公开。
+# 私钥/证书只存在受保护 Secrets 或签名服务，绝不进入仓库或日志。
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，例如 2.0.1（不带 v）'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  DART_SDK_VERSION: "2.17.0"
+  REPO: ChaosSurvivalProject/xqly-app
+
+jobs:
+  # ---------------------------------------------------------------- 1. 版本校验
+  validate:
+    name: 校验标签 / 版本号 / versionCode / 四段版本
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      code: ${{ steps.v.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: 全量版本一致性
+        run: |
+          # workflow_dispatch 优先用显式输入；tag 推送时从 ref 去掉前导 v。
+          TAG="${{ github.event.inputs.version }}"
+          if [ -z "$TAG" ]; then TAG="${GITHUB_REF_NAME#v}"; fi
+          CODE=$(grep -o 'android:versionCode="[0-9]*"' AndroidManifest.xml | grep -o '[0-9]*')
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE"   >> "$GITHUB_OUTPUT"
+          test -n "$TAG" || { echo "::error::无法确定版本号"; exit 1; }
+          # 标签必须是合法三段版本，且与六处真源一致
+          echo "$TAG" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'
+          grep -qF "android:versionName=\"$TAG\"" AndroidManifest.xml
+          grep -qF "VERSION_NAME = \"$TAG\"" src/cn/xqly/app/MainActivity.java
+          grep -qF "versionName = '$TAG'" shared/lib/src/identity.dart
+          grep -qF "V_NAME=$TAG" build.sh
+          grep -qF "windowsVersion = '$TAG.0'" shared/lib/src/identity.dart
+          # resource.h 里逗号后有空格；拼出完全一致的字面量再精确比对。
+          # 旧的 `tr . ,` 拼法实测为 "2,0,1, 0"，与 "2, 0, 1, 0" 不匹配；
+          # 用 awk 拼字符串又因引号歧义触发 "runaway string constant"。
+          # 改用纯 shell 参数展开，无引号歧义。
+          V1=${TAG%%.*}; R=${TAG#*.}; V2=${R%%.*}; V3=${R##*.}
+          EXPECTED_COMMA="$V1, $V2, $V3, 0"
+          grep -qF "XQLY_VERSION_COMMA  $EXPECTED_COMMA" windows/runner/resources/resource.h
+          grep -qF "\"$TAG.0\"" windows/runner/resources/resource.h
+          # versionCode 必须比上一个 tag 递增
+          PREV=$(git tag --list 'v*' --sort=-v:refname | grep -v "^v$TAG$" | head -1)
+          if [ -n "$PREV" ]; then
+            # 用 ${PREV} 显式定界：zsh 会把裸 $PREV:A 里的 :A 当作路径修饰符。
+            PREV_CODE=$(git show "${PREV}:AndroidManifest.xml" | grep -o 'android:versionCode="[0-9]*"' | grep -o '[0-9]*')
+            if [ -n "$PREV_CODE" ] && [ "$CODE" -le "$PREV_CODE" ]; then
+              echo "::error::versionCode 未递增: $CODE <= $PREV_CODE ($PREV)"; exit 1
+            fi
+          fi
+          echo "版本校验通过: $TAG / code=$CODE / windows=$TAG.0"
+
+  # ---------------------------------------------------------------- 2. Android
+  android:
+    name: 构建 Android Release APK
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - uses: dart-lang/setup-dart@v1
+        # 必须写成块样式：flow mapping 里的 ${{ }} 会被 YAML 当成嵌套花括号。
+        with:
+          sdk: ${{ env.DART_SDK_VERSION }}
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: 安装锁定版本 SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - name: 从 Secrets 恢复发布密钥（缺失则不伪造）
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > /tmp/xqly-release.jks
+            echo "KS=/tmp/xqly-release.jks" >> "$GITHUB_ENV"
+            echo "KS_PASS=$KS_PASS" >> "$GITHUB_ENV"
+            echo "KEY_PASS=$KS_PASS" >> "$GITHUB_ENV"
+            echo "SIGN_MODE=RELEASE" >> "$GITHUB_ENV"
+          else
+            echo "::warning::未配置 ANDROID_KEYSTORE_BASE64，产物为测试签名"
+            echo "SIGN_MODE=TEST" >> "$GITHUB_ENV"
+          fi
+      - name: 清理构建并执行 12 步门禁
+        run: bash build.sh
+      - name: 校验签名与版本
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" verify --verbose "dist/星穹旅驿.apk" | grep -E 'Verified using|Number of signers'
+          "$BT/apksigner" verify --print-certs "dist/星穹旅驿.apk" | grep 'SHA-256'
+          "$BT/aapt" dump badging "dist/星穹旅驿.apk" | head -3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/星穹旅驿.apk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- 3. Windows
+  windows:
+    name: 构建 Windows x64 安装版 / 便携版
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 编译 Win32 外壳（MSVC）
+        run: |
+          cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64
+          cmake --build windows/build --config Release
+      - name: 冒烟测试
+        shell: pwsh
+        run: .\windows\tests\smoke.ps1 -Exe .\windows\build\Release\xqly.exe
+      - name: 组装 MSIX 与便携 ZIP
+        shell: pwsh
+        run: |
+          $V = "${{ needs.validate.outputs.version }}"
+          New-Item -ItemType Directory -Force -Path dist, msix-stage, portable-stage | Out-Null
+          # --- 便携 ZIP ---
+          Copy-Item windows\build\Release\xqly.exe portable-stage\
+          Get-ChildItem windows\build\Release -Filter *.dll | Copy-Item -Destination portable-stage\
+          New-Item -ItemType Directory -Force -Path portable-stage\data | Out-Null
+          Copy-Item windows\build\Release\data\* portable-stage\data\ -Recurse -ErrorAction SilentlyContinue
+          Copy-Item windows\runner\resources\design-tokens.json portable-stage\data\
+          Copy-Item windows\packaging\portable\PORTABLE.md portable-stage\
+          New-Item -ItemType File -Force -Path portable-stage\portable.flag | Out-Null
+          Copy-Item LICENSE, NOTICE.md portable-stage\
+          Compress-Archive -Path portable-stage\* -DestinationPath "dist\windows-portable.zip" -Force
+          # --- MSIX 组装 ---
+          Copy-Item windows\build\Release\xqly.exe msix-stage\
+          New-Item -ItemType Directory -Force -Path msix-stage\data | Out-Null
+          Copy-Item windows\runner\resources\design-tokens.json msix-stage\data\
+          Copy-Item windows\packaging\msix\AppxManifest.xml msix-stage\
+          New-Item -ItemType Directory -Force -Path msix-stage\Assets | Out-Null
+          Copy-Item windows\packaging\msix\Assets\* msix-stage\Assets\
+          $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter makeappx.exe -Recurse |
+                      Where-Object { $_.FullName -like '*\x64\*' } | Select-Object -First 1 -ExpandProperty FullName
+          if ($makeappx) { & $makeappx pack /d msix-stage /p "dist\windows-setup.msix" /nv }
+          else { Write-Host "::warning::未找到 makeappx.exe，跳过 MSIX（改用 EXE 安装器备选）" }
+      - name: 签名（无正式证书则明确标注 UNSIGNED，不伪造）
+        shell: pwsh
+        env:
+          PFX: ${{ secrets.WINDOWS_SIGNING_PFX }}
+          PFX_PASS: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+        run: |
+          $files = @()
+          if (Test-Path dist\windows-setup.msix) { $files += "dist\windows-setup.msix" }
+          $files += "windows\build\Release\xqly.exe"
+          $env:WINDOWS_SIGNING_PFX = $env:PFX
+          $env:WINDOWS_SIGNING_PASSWORD = $env:PFX_PASS
+          .\windows\packaging\sign.ps1 -Files $files
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-bundle
+          path: |
+            dist/windows-setup.msix
+            dist/windows-portable.zip
+            windows/build/Release/xqly.exe
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------- 4. 草稿发布
+  draft:
+    name: 生成清单 / SBOM / Release 草稿
+    needs: [validate, android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: android-apk, path: artifacts }
+      - uses: actions/download-artifact@v4
+        with: { name: windows-bundle, path: artifacts }
+      - name: 按真实产物命名（不创建占位假文件）
+        run: |
+          V="${{ needs.validate.outputs.version }}"
+          mkdir -p release
+          cp artifacts/星穹旅驿.apk "release/xqly-app-v$V.apk"          # OTA 主资产（命名受更新链约束）
+          cp artifacts/星穹旅驿.apk "release/星穹旅驿-$V-android-universal-release.apk"
+          if [ -f artifacts/windows-setup.msix ]; then
+            cp artifacts/windows-setup.msix "release/星穹旅驿-$V-windows-x64-setup.msix"
+          fi
+          if [ -f artifacts/windows-portable.zip ]; then
+            cp artifacts/windows-portable.zip "release/星穹旅驿-$V-windows-x64-portable.zip"
+          fi
+          ls -lh release/
+      - name: 生成 SHA256SUMS.txt 与 SBOM.spdx.json
+        run: python3 tools/gen_release_assets.py release "$V"
+        env:
+          V: ${{ needs.validate.outputs.version }}
+      - name: 生成版本说明
+        run: |
+          V="${{ needs.validate.outputs.version }}"
+          cp "docs/RELEASE_NOTES_$V.md" "release/RELEASE_NOTES_$V.md" 2>/dev/null \
+            || printf '# 星穹旅驿 %s\n\n详见仓库 docs/。\n' "$V" > "release/RELEASE_NOTES_$V.md"
+      - name: 创建 Release 草稿（不自动公开）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V="${{ needs.validate.outputs.version }}"
+          # 若运营团队已用仓库外正式签名密钥在本机发布过 v$V，绝不覆盖该 Release：
+          # CI 没有发布密钥时构建的是测试签名 APK，覆盖会破坏可覆盖升级链。
+          if gh release view "v$V" --repo "$REPO" >/dev/null 2>&1; then
+            echo "::warning::Release v$V 已存在，跳过创建以免覆盖正式签名资产"
+          else
+            gh release create "v$V" release/* --repo "$REPO" \
+              --title "星穹旅驿 $V · Windows + Android" \
+              --notes-file "release/RELEASE_NOTES_$V.md" --draft
+          fi
+      - name: 像用户一样下载并验证哈希与签名
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V="${{ needs.validate.outputs.version }}"
+          mkdir -p /tmp/verify
+          gh release download "v$V" --repo "$REPO" --dir /tmp/verify
+          (cd /tmp/verify && sha256sum -c SHA256SUMS.txt)
+          echo "摘要校验通过"
+          # 签名验证：Windows 仅在有正式证书时可用；Android 用 apksigner
+          if [ -f "/tmp/verify/xqly-app-v$V.apk" ]; then
+            keytool -printcert -jarfile "/tmp/verify/xqly-app-v$V.apk" 2>/dev/null | grep -i SHA256 | head -2 || true
+          fi
+      - name: 输出发布摘要
+        run: |
+          V="${{ needs.validate.outputs.version }}"
+          gh release view "v$V" --repo "$REPO" --json isDraft,tagName,assets \
+            --jq '"草稿=" + (.isDraft|tostring) + " tag=" + .tagName + " 资产=" + ([.assets[].name]|join(", "))'

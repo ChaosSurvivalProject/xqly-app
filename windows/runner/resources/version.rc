@@ -1,0 +1,42 @@
+#include "resource.h"
+#include <winver.h>
+
+// MSIX / VERSIONINFO 使用四段版本；必须与 shared/ 的 AppIdentity.windowsVersion 一致。
+VS_VERSION_INFO VERSIONINFO
+  FILEVERSION    XQLY_VERSION_COMMA
+  PRODUCTVERSION XQLY_VERSION_COMMA
+  FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+  FILEFLAGS      VS_FF_DEBUG
+#else
+  FILEFLAGS      0x0L
+#endif
+  FILEOS         VOS_NT_WINDOWS32
+  FILETYPE       VFT_APP
+  FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "080404b0"   // 简体中文 / Unicode
+    BEGIN
+      VALUE "CompanyName",      "ChaosSurvivalProject"
+      VALUE "FileDescription",  "星穹旅驿 Windows 客户端"
+      VALUE "FileVersion",      XQLY_VERSION_STR
+      VALUE "InternalName",     "xqly"
+      VALUE "LegalCopyright",   "Copyright (C) 2026 星穹旅驿运营团队"
+      VALUE "OriginalFilename", "xqly.exe"
+      VALUE "ProductName",      "星穹旅驿"
+      VALUE "ProductVersion",   XQLY_VERSION_STR
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x804, 1200
+  END
+END
+
+IDI_XQLY  ICON  "xqly.ico"
+
+// 声明为 DPI 感知 + 支持 Windows 10/11 的公共控件视觉样式。
+// 100%–300% 缩放下由外壳自行按 DPI 缩放，而不是让系统位图拉伸导致模糊。
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "app.manifest"

@@ -16,12 +16,13 @@ import android.view.View;
 import android.widget.LinearLayout;
 
 /**
- * 液态玻璃底部 Dock 导航栏（仿 Apple macOS / iOS 26 设计语言）
+ * 「星穹玻璃」底部 Dock 导航栏（自有设计语言）
  *  - 统一的玻璃药丸容器，与侧边药丸共用同一套材质
- *  - macOS 风格「放大镜」效果：靠近指针的图标平滑放大并溢出相邻项
- *  - 选中项内嵌磨砂玻璃药丸（iOS/macOS 标签栏「悬浮玻璃」观感）
- *  - 顶部受光高光、同心圆角，跟随内容折射
- *  - 滚动时收拢、上滚时展开（iOS 26 标签栏行为）
+ *  - 邻近放大：靠近指针的图标平滑放大并向上溢出；触摸设备仅作增强，
+ *    明确选中态才是主要入口指示
+ *  - 选中项内嵌磨砂玻璃药丸，与侧边药丸同材质
+ *  - 统一光源方向的顶部受光高光、同心圆角，跟随内容折射
+ *  - 内容滚动时收拢、停止/上滚时展开（默认关闭，由功能开关控制）
  */
 public class GlassDock extends LinearLayout {
 
@@ -34,7 +35,7 @@ public class GlassDock extends LinearLayout {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
     private static final int SKY  = 0xFF6FA8FF;
-    private static final float LOUP = 0.85f;    // 最大放大增量
+    private static final float MAG_GAIN = 0.85f;    // 最大放大增量
     private static final float SIGMA = 0.55f;   // 受影响半径系数（以单格宽度计）
 
     private final DockItem[] items = new DockItem[ITEMS.length];
@@ -43,10 +44,10 @@ public class GlassDock extends LinearLayout {
     private int active = 0;
     private float scale = 1f;
 
-    // 放大镜（loupe）插值状态
+    // 邻近放大插值状态
     private final float[] mag = new float[ITEMS.length];
     private final float[] magTarget = new float[ITEMS.length];
-    private ValueAnimator loupe;
+    private ValueAnimator magnify;
     private float touchX = -1f, touchY = -1f;
     private boolean touching = false;
 
@@ -84,7 +85,7 @@ public class GlassDock extends LinearLayout {
     @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
         glass.setBounds(0, 0, w, h);
-        if (w > 0 && !touching) { updateTargets(); startLoupe(); }
+        if (w > 0 && !touching) { updateTargets(); startMagnify(); }
     }
 
     @Override protected void onDraw(Canvas canvas) {
@@ -113,7 +114,7 @@ public class GlassDock extends LinearLayout {
         for (int i = 0; i < items.length; i++) items[i].setActive(i == index);
         glass.setAccent(index == 1 ? DAWN : (index == 2 ? SKY : DUSK));
         updateTargets();
-        startLoupe();
+        startMagnify();
         invalidate();
     }
 
@@ -139,7 +140,7 @@ public class GlassDock extends LinearLayout {
     public void startFlow() { glass.startFlow(); }
     public void stopFlow() { glass.stopFlow(); }
 
-    /** iOS 26 标签栏式：滚动时收拢，停止/上滚时展开 */
+    /** 内容滚动时收拢导航，停止/上滚时展开（默认关闭） */
     public void setCompact(boolean compact) {
         float s = compact ? 0.90f : 1f;
         float ty = compact ? (10 * getResources().getDisplayMetrics().density) : 0f;
@@ -150,7 +151,7 @@ public class GlassDock extends LinearLayout {
     }
 
     // ------------------------------------------------------------------
-    // 放大（放大镜）逻辑：触摸设备仅作为增强，选中态才是主要入口指示
+    // 邻近放大逻辑：触摸设备仅作为增强，选中态才是主要入口指示
     private boolean rail = false;
 
     public void setRail(boolean r) { rail = r; }
@@ -167,24 +168,24 @@ public class GlassDock extends LinearLayout {
             if (touching && pointer >= 0) {
                 float dist = Math.abs(pointer - center);
                 float x = dist / (cell * SIGMA);
-                float bump = (float) Math.exp(-x * x);          // 高斯衰减，贴近 macOS 程序坞
-                magTarget[i] = Math.max(base, 1f + LOUP * bump);
+                float bump = (float) Math.exp(-x * x);          // 高斯衰减：越靠近指针放大越明显
+                magTarget[i] = Math.max(base, 1f + MAG_GAIN * bump);
             } else {
                 magTarget[i] = base;
             }
         }
     }
 
-    private void startLoupe() {
-        if (loupe != null && loupe.isRunning()) return;
-        if (loupe == null) {
-            loupe = ValueAnimator.ofFloat(0f, 1f);
-            loupe.setDuration(160);
-            loupe.setRepeatCount(ValueAnimator.INFINITE);
-            loupe.setRepeatMode(ValueAnimator.RESTART);
+    private void startMagnify() {
+        if (magnify != null && magnify.isRunning()) return;
+        if (magnify == null) {
+            magnify = ValueAnimator.ofFloat(0f, 1f);
+            magnify.setDuration(160);
+            magnify.setRepeatCount(ValueAnimator.INFINITE);
+            magnify.setRepeatMode(ValueAnimator.RESTART);
         }
-        loupe.removeAllUpdateListeners();
-        loupe.addUpdateListener(a -> {
+        magnify.removeAllUpdateListeners();
+        magnify.addUpdateListener(a -> {
             float maxd = 0f;
             for (int i = 0; i < mag.length; i++) {
                 mag[i] += (magTarget[i] - mag[i]) * 0.30f;
@@ -193,11 +194,11 @@ public class GlassDock extends LinearLayout {
             }
             if (maxd < 0.002f) {
                 for (int i = 0; i < mag.length; i++) mag[i] = magTarget[i];
-                if (loupe != null) loupe.cancel();
+                if (magnify != null) magnify.cancel();
             }
             invalidate();
         });
-        loupe.start();
+        magnify.start();
     }
 
     private int indexFromX(float pos) {
@@ -223,7 +224,7 @@ public class GlassDock extends LinearLayout {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 touching = true; touchX = e.getX(); touchY = e.getY();
-                updateTargets(); startLoupe();
+                updateTargets(); startMagnify();
                 spawnRipple(e.getX(), e.getY());
                 return true;
             case MotionEvent.ACTION_MOVE:
@@ -234,7 +235,7 @@ public class GlassDock extends LinearLayout {
             case MotionEvent.ACTION_CANCEL: {
                 int idx = indexFromX(rail ? (touchY < 0 ? e.getY() : touchY) : (touchX < 0 ? e.getX() : touchX));
                 touching = false; touchX = -1f; touchY = -1f;
-                updateTargets(); startLoupe();
+                updateTargets(); startMagnify();
                 if (e.getActionMasked() == MotionEvent.ACTION_UP && listener != null) {
                     listener.onClick(idx, ITEMS[idx][0]);
                 }
@@ -281,10 +282,10 @@ public class GlassDock extends LinearLayout {
             float cx = w / 2f;
 
             c.save();
-            // 以底部中心为轴放大：图标向上溢出，贴近 macOS 程序坞观感
+            // 以底部中心为轴放大：图标向上溢出，保持同心圆角连续
             c.scale(m, m, cx, h * 0.92f);
 
-            // 选中态：内嵌磨砂玻璃药丸（iOS/macOS 标签栏「悬浮玻璃」）
+            // 选中态：内嵌磨砂玻璃药丸，明确指示当前入口
             if (isActive) {
                 float pw = w * 0.84f, ph = h * 0.74f;
                 RectF pr = new RectF(cx - pw / 2, (h - ph) / 2, cx + pw / 2, (h + ph) / 2);

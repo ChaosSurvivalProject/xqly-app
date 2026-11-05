@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  .appinstaller 更新地址必须使用 HTTPS。
+  ⚠ 下面 URI 是发布位置的模板（真实 Release 生成后由维护者核对），
+    不是已上线可下载的地址；未配置时应用内显示「未配置更新源」，不显示虚假状态。
+  更改更新地址或签名证书时，必须遵循 Windows 的显式信任要求，
+  不得绕过系统安全提示；Windows 会校验 MSIX 签名与 AppInstaller 来源一致。
+-->
+<AppInstaller
+  Uri="https://github.com/ChaosSurvivalProject/xqly-app/releases/latest/download/xqly.appinstaller"
+  Version="2.0.1.0"
+  xmlns="http://schemas.microsoft.com/appx/appinstaller/2017/2">
+
+  <MainPackage
+    Name="ChaosSurvivalProject.XQLY"
+    Publisher="CN=XQLY-Test-Signing, O=ChaosSurvivalProject, C=CN"
+    Version="2.0.1.0"
+    ProcessorArchitecture="x64"
+    Uri="https://github.com/ChaosSurvivalProject/xqly-app/releases/download/v2.0.1/xqly-2.0.1-windows-x64-setup.msix" />
+
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="24" ShowPrompt="true" />
+    <AutomaticBackgroundTask />
+  </UpdateSettings>
+</AppInstaller>

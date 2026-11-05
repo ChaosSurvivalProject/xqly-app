@@ -39,7 +39,7 @@
 | `UpdateCenter.java` | `feature:update` | 由 AlertDialog 改为 Compose Screen，复用 `UpdateVerdict.Verdict` |
 | `PrefsStore.java` / `FeatureGate.java` | `data` / `domain:config` | 由 DI（Hilt/Koin）提供可替换实现 |
 | `StateOverlay.java` | `designsystem` | 改为 `StateHost` Composable |
-| `GlassDrawable.java` / `GlassDock.java` | `designsystem:glass` | **保留原生 Canvas 实现**，通过 `AndroidView` 嵌入；或用 Compose `Canvas` + `Modifier.graphicsLayer` 重写并做视觉回归。不建议为了纯度丢弃已调好的折射/放大镜 |
+| `GlassDrawable.java` / `GlassDock.java` | `designsystem:glass` | **保留原生 Canvas 实现**，通过 `AndroidView` 嵌入；或用 Compose `Canvas` + `Modifier.graphicsLayer` 重写并做视觉回归。不建议为了纯度丢弃已调好的折射/邻近放大 |
 | `XFileProvider.java` | `app` | 保留，Manifest 声明不变 |
 | `assets/game-engine.js` | `feature:game` | 若把游戏也 Compose 化，规则改调 `GameRules`；当前 DOM 版可继续用 `AndroidView` |
 | `assets/library.css` / `game.css` | `designsystem` | 令牌值应与 Compose `XqlyColors` / `Shapes` 保持同源（建议生成脚本同步常量） |

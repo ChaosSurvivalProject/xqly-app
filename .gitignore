@@ -4,6 +4,9 @@ build/
 *.keystore
 *.apk.idsig
 dist/
+# 发布暂存目录含 APK 二进制副本，产物一律走 GitHub Release，不入库
+release/
+windows/build/
 
 # ---- 爬取/复现时的工作目录 ----
 tools/mirror/
@@ -16,6 +19,9 @@ __pycache__/
 .venv/
 venv/
 
+# ---- Dart 工具缓存（pubspec.lock 需提交以锁定依赖）----
+.dart_tool/
+
 # ---- 编辑器 / 系统 ----
 .idea/
 .vscode/
@@ -26,3 +32,6 @@ Thumbs.db
 # ---- 本地配置（凭证一律走环境变量）----
 .env
 local.properties
+
+# ---- Dart 遗留本地路径文件（由 .dart_tool/package_config.json 取代）----
+.packages

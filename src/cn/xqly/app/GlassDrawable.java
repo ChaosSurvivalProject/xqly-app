@@ -15,7 +15,7 @@ import android.graphics.drawable.Drawable;
 import android.view.View;
 
 /**
- * 液态玻璃绘制层。
+ * 「星穹玻璃」绘制层（自有设计语言）。
  * 由「半透明玻璃体 + 双色折射光斑 + 流动高光 + 折射描边 + 悬浮阴影」叠加而成，
  * 不依赖 RenderEffect，兼容 Android 7.0+。
  */
@@ -167,7 +167,7 @@ public class GlassDrawable extends Drawable {
                 col, pos, Shader.TileMode.CLAMP));
         c.drawRoundRect(rect, r, r, sheen);
 
-        // ---- 4.5 顶部受光：玻璃上沿捕捉环境光，制造柔和高光（Apple 玻璃质感关键） ----
+        // ---- 4.5 顶部受光：玻璃上沿捕捉统一光源，制造柔和高光（星穹玻璃质感关键） ----
         catchLight.setShader(new RadialGradient(rect.left + w * 0.5f, rect.top - h * 0.12f, w * 0.78f,
                 Color.argb((int) (46 * a), 255, 255, 255), Color.TRANSPARENT, Shader.TileMode.CLAMP));
         c.drawRoundRect(rect, r, r, catchLight);

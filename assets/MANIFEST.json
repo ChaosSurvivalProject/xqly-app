@@ -1,16 +1,21 @@
 {
   "schema": 1,
-  "version": 1793873523,
+  "version": 1793890532,
   "files": [
     {
       "p": "archive.html",
-      "sha256": "20651a5db314bb8385b38926c0acb6e2362308310fef63853dd71c9771319dd6",
-      "size": 73369
+      "sha256": "dcb192952ec1aa7442a41c9b7763f0fa0fac3f592f44af3bcf46a5f1d841f191",
+      "size": 73398
     },
     {
       "p": "bridge-shim.js",
       "sha256": "119c28d7e70bee6220b718a88cf26c2b9ea7e465989e7f3736c64020b3a5f53a",
       "size": 2749
+    },
+    {
+      "p": "design-tokens.css",
+      "sha256": "27eb77d2af01037f3652a111fa7401e5bd7226881ee5395140c1153c6d416640",
+      "size": 5764
     },
     {
       "p": "game-engine.js",
@@ -24,18 +29,18 @@
     },
     {
       "p": "game.html",
-      "sha256": "8d934ff70a7bff235f79edb365987e670c7b3703d3128ff697ec05ca5d32ef92",
-      "size": 13182
+      "sha256": "7f56762fb93feefd270851b9dd8cea79cd863132231bbc608a6e876c3449c510",
+      "size": 13231
     },
     {
       "p": "library.css",
-      "sha256": "554d71a983b2943bfb0249784797ca1549eda7f28685d1c4588f00984b14592f",
-      "size": 8353
+      "sha256": "4803ef837b2909a22ab6e311f6a8edbb63a0669c7a9433ba806ed7a0a059c3b6",
+      "size": 8334
     },
     {
       "p": "library.html",
-      "sha256": "6f790c064a2d25d0af97186e1cfad691b7d9e2a7dc24ac3e03c1a68e2a54ed4f",
-      "size": 11375
+      "sha256": "898e1aab80730eaa548626a9f1affc5790e4d7e275c0272d24159830fa1bc739",
+      "size": 11424
     },
     {
       "p": "config/flags.json",

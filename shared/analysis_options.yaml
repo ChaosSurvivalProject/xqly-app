@@ -1,0 +1,16 @@
+# Dart 2.17 兼容；不引入 package:lints 以保持零依赖、离线可分析。
+analyzer:
+  errors:
+    todo: ignore
+    unused_import: warning
+    dead_code: info
+  exclude:
+    - "**/*.g.dart"
+
+linter:
+  rules:
+    - avoid_empty_else
+    - prefer_final_fields
+    - prefer_const_declarations
+    - avoid_relative_lib_imports
+    - directives_ordering

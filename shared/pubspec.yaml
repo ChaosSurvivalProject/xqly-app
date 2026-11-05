@@ -1,0 +1,14 @@
+name: xqly_core
+description: >-
+  星穹旅驿 Windows + Android 双平台共享业务核心。纯 Dart，零 Flutter UI 依赖、
+  零第三方依赖，可在标准 Dart VM 上独立编译、分析与测试。
+version: 2.0.1
+publish_to: none
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+
+# 故意不声明任何 dependencies / dev_dependencies：
+# 1) 领域逻辑不得依赖文件系统、网络实现或 Flutter 控件；
+# 2) 保证 `dart pub get --offline` 在完全断网的构建机上也能成功；
+# 3) 测试使用自带的零依赖 harness，不需要 package:test。

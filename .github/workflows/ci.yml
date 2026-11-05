@@ -1,0 +1,141 @@
+name: 双平台持续集成
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Dart SDK 锁定到 2.17.0：与本地验证环境一致，shared/pubspec.yaml 约束 <3.0.0。
+# 不批量升级依赖，避免引入大面积不兼容。
+env:
+  DART_SDK_VERSION: "2.17.0"
+  ANDROID_BUILD_TOOLS: "35.0.0"
+  ANDROID_PLATFORM: "android-35"
+
+jobs:
+  # ---------------------------------------------------------------- 共享核心
+  shared-core:
+    name: 共享 Dart 核心 · 静态分析 + 152 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ env.DART_SDK_VERSION }}
+      - name: 静态分析 / 令牌一致性
+        run: |
+          cd shared
+          dart pub get --offline
+          dart analyze
+          dart tool/gen_tokens.dart .. --check
+      - name: 共享业务核心测试
+        run: |
+          cd shared
+          dart test/run_tests.dart ..
+
+  # ---------------------------------------------------------------- Android
+  android:
+    name: Android · 12 步门禁 + 编译 + 签名
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ env.DART_SDK_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 安装锁定版本的 Android SDK 组件
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - name: 完整构建（三套测试 + 资源校验 + 签名）
+        run: |
+          # CI 无发布密钥：build.sh 会明确警告并使用临时调试密钥，
+          # 该产物仅用于验证，不作为正式 Release 资产。
+          bash build.sh
+      - name: 校验 APK 版本与签名
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" verify --verbose "dist/星穹旅驿.apk" | head -8
+          "$BT/aapt" dump badging "dist/星穹旅驿.apk" | head -4
+          test -f assets/MANIFEST.json
+          unzip -l "dist/星穹旅驿.apk" | grep -E 'design-tokens.css|MANIFEST.json|game-engine.js'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/星穹旅驿.apk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- Windows 核心
+  windows-core:
+    name: Windows 核心 · CMake 编译 + 34 测试
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置
+        run: cmake -S windows/runner/core -B build/wincore -A x64
+      - name: 编译
+        run: cmake --build build/wincore --config Release
+      - name: 单元测试
+        run: ctest --test-dir build/wincore -C Release --output-on-failure
+
+  # ---------------------------------------------------------------- Windows 外壳
+  windows-shell:
+    name: Windows 外壳 · MSVC 编译 + 冒烟测试
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置（Visual Studio 2022 + 使用 C++ 的桌面开发）
+        run: cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64
+      - name: 编译 Release
+        run: cmake --build windows/build --config Release
+      - name: Windows 冒烟测试
+        shell: pwsh
+        run: .\windows\tests\smoke.ps1 -Exe .\windows\build\Release\xqly.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: windows/build/Release/xqly.exe
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- 安全与合规
+  security-scan:
+    name: 敏感文件 / 品牌 / 许可扫描
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 无密钥与凭据入库
+        run: |
+          if git ls-files | grep -iE '\.(jks|keystore|pfx|pem|env)$|ghp_[A-Za-z0-9]{20,}'; then
+            echo "::error::发现疑似敏感文件"; exit 1
+          fi
+          echo "无敏感文件入库"
+      - name: 无品牌模仿表述与虚构服务器
+        run: |
+          if grep -rniE 'Apple macOS|iOS 26|仿 ?Apple|程序坞|放大镜' \
+              --include='*.java' --include='*.md' --include='*.dart' --include='*.cpp' \
+              src shared windows docs README.md; then
+            echo "::error::发现品牌模仿表述"; exit 1
+          fi
+          echo "品牌表述检查通过"
+      - name: 工作流 YAML 语法
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 -c "import yaml,glob; [yaml.safe_load(open(f,encoding='utf-8')) for f in glob.glob('.github/workflows/*.yml')]; print('YAML OK')"
+      - name: 许可与清单文件存在
+        run: |
+          # 大小写必须与仓库一致（Linux 区分大小写）。
+          for f in LICENSE NOTICE.md docs/PRIVACY.md docs/PERMISSIONS.md \
+                   docs/THIRD_PARTY.md docs/dual-platform/SBOM.md; do
+            test -f "$f" || { echo "::error::缺少合规文件 $f"; exit 1; }
+          done
+          echo "许可、隐私、权限、第三方依赖与软件清单齐全"

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  星穹旅驿 MSIX 清单。
+
+  ⚠ 当前没有正式代码签名证书：Publisher 使用【测试签名主体】，
+    产物必须命名为 *-test-signed.msix 并在 Release 明确标注「测试签名，非公开正式版」。
+  正式发布时：
+    1) 把 Publisher 改成受信任代码签名证书的 Subject（与证书完全一致）；
+    2) 每次升级递增 Version（四段）；
+    3) 用 windows/packaging/sign.ps1 从 CI Secrets 读取证书签名 + RFC3161 时间戳；
+    4) 更新 appinstaller.xml 的 HTTPS 地址，并遵循 Windows 的显式信任要求。
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 rescap">
+
+  <Identity
+    Name="ChaosSurvivalProject.XQLY"
+    Publisher="CN=XQLY-Test-Signing, O=ChaosSurvivalProject, C=CN"
+    Version="2.0.1.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>星穹旅驿</DisplayName>
+    <PublisherDisplayName>星穹旅驿运营团队</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>星穹旅驿 Windows 原生客户端（在线/离线阅读、资料检索、方块合成）</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="zh-CN" />
+  </Resources>
+
+  <Applications>
+    <Application Id="XQLY" Executable="xqly.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="星穹旅驿"
+        Description="星穹旅驿 Windows 原生客户端"
+        BackgroundColor="#0a0e18"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#0a0e18" />
+      </uap:VisualElements>
+
+      <!-- 自有同步包文件关联：仅在用户安装时启用，打开前验证来源与格式 -->
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="xqlypack">
+            <uap:DisplayName>星穹旅驿同步包</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.xqlypack</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <!-- 自定义协议：只接受 ParseProtocolUri 白名单命令 -->
+        <uap3:Extension Category="windows.protocol">
+          <uap3:Protocol Name="xqly" />
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <!-- 只声明实际需要的最小 capability，不使用宽泛权限逃避设计 -->
+  <Capabilities>
+    <Capability Name="internetClient" />
+  </Capabilities>
+</Package>

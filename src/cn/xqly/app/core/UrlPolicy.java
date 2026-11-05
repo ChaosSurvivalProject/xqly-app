@@ -77,7 +77,8 @@ public final class UrlPolicy {
 
     /** 内置页面可加载的同目录 js/css 资源（严格白名单，不含子目录、不含穿越）。 */
     private static final String[] LOCAL_RESOURCES = {
-            "game-engine.js", "bridge-shim.js", "library.css", "game.css"
+            "game-engine.js", "bridge-shim.js", "library.css", "game.css",
+            "design-tokens.css"   // 由 shared/tool/gen_tokens.dart 生成的双平台共享令牌
     };
 
     public static boolean localResourceAllowed(String raw) {

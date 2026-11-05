@@ -42,7 +42,7 @@
   --inner-light: inset 0 1px 0 rgba(255, 255, 255, .22);
 
   /* 排版与触控 */
-  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC",
+  --font: system-ui, "Segoe UI", Roboto, "Noto Sans CJK SC",
           "Microsoft YaHei", sans-serif;
   --fs-body: 1rem; --fs-sm: .875rem; --fs-lg: 1.125rem; --fs-xl: 1.375rem;
   --lh: 1.65;
