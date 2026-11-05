@@ -1,0 +1,55 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "id": 2,
+        "title": "生产环境更新完成",
+        "summary": "生产环境已更新完成。核对结果如下： 本次上线内容 服务器仓库从 推进到 ，共 4 个提交（3 个此前一直未上线的代码提交 + 1 个本次文档提交）： | 提交 | 内容 | | --- | --- |",
+        "coverUrl": "",
+        "thumbUrl": "",
+        "category": {
+          "id": 4,
+          "code": "guide",
+          "name": "攻略教程",
+          "color": "#6366f1",
+          "sortOrder": 3,
+          "isSystem": 0,
+          "isHidden": 0
+        },
+        "tags": [
+          {
+            "id": 1,
+            "name": "官方"
+          }
+        ],
+        "isTop": 0,
+        "isFeatured": 0,
+        "status": 1,
+        "statusText": "已发布",
+        "removeBy": "",
+        "resubmitCount": 0,
+        "author": {
+          "id": 1,
+          "name": "xqly-admin",
+          "avatar": null,
+          "badge": "管理员"
+        },
+        "viewCount": 11,
+        "likeCount": 0,
+        "commentCount": 2,
+        "favoriteCount": 0,
+        "publishTime": "2026-10-05T12:37:27",
+        "createTime": "2026-10-05T12:35:45",
+        "updateTime": "2026-10-05T12:37:27"
+      }
+    ],
+    "page": 1,
+    "pageSize": 50,
+    "totalPages": 1,
+    "total": 1,
+    "hasNext": false,
+    "hasPrev": false
+  }
+}

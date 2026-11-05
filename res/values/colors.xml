@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_deep">#FF050713</color>
+    <color name="bg_mid">#FF0D1230</color>
+    <color name="glass_tint">#FF141A38</color>
+    <color name="dawn">#FFFFCE86</color>
+    <color name="dusk">#FFA87CFF</color>
+    <color name="ic_launcher_background">#FF0A0E26</color>
+</resources>

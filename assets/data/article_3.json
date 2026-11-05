@@ -1,0 +1,50 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": 3,
+    "title": "消息中心上线啦！被点赞、被回复都会提醒你",
+    "summary": "大家好！本次网站更新带来了全新的消息中心，以后在社区发帖、评论、互动，再也不会错过任何消息。 🔔 新增：消息中心 点击导航栏头像左侧的铃铛按钮即可打开，有未读消息时会显示红色角标。消息分为三个页签： ",
+    "coverUrl": "/api/announcement/uploads/forum/202610/5297d46cae6b45b58b778fc27d71e9b0.png",
+    "thumbUrl": "/api/announcement/uploads/forum/202610/5297d46cae6b45b58b778fc27d71e9b0.png",
+    "category": {
+      "id": 7,
+      "code": "news",
+      "name": "新闻活动",
+      "color": "#ec4899",
+      "sortOrder": 6,
+      "isSystem": 0,
+      "isHidden": 0
+    },
+    "tags": [
+      {
+        "id": 2,
+        "name": "网站更新公告"
+      }
+    ],
+    "isTop": 0,
+    "isFeatured": 0,
+    "status": 1,
+    "statusText": "已发布",
+    "removeBy": "",
+    "resubmitCount": 0,
+    "author": {
+      "id": 1,
+      "name": "xqly-admin",
+      "avatar": null,
+      "badge": "管理员"
+    },
+    "viewCount": 23,
+    "likeCount": 2,
+    "commentCount": 5,
+    "favoriteCount": 1,
+    "publishTime": "2026-10-09T18:56:08",
+    "createTime": "2026-10-09T18:55:45",
+    "updateTime": "2026-10-09T18:56:08",
+    "content": "大家好！本次网站更新带来了全新的**消息中心**，以后在社区发帖、评论、互动，再也不会错过任何消息。\n\n## 🔔 新增：消息中心\n\n点击导航栏头像左侧的**铃铛按钮**即可打开，有未读消息时会显示红色角标。消息分为三个页签：\n\n- **回复我的**：有人评论你的文章、或回复你的评论时，你会收到通知；点击通知可直达文章并自动定位到对应评论\n- **收到点赞**：你的文章或评论收到点赞时，会收到「XXX 点赞了我的文章 / 评论」通知，点击即可跳转到被点赞的内容\n- **系统通知**：文章审核结果（通过 / 驳回及理由）、服务器公告与活动通知都在这里查看\n\n支持单条已读、一键全部已读、删除，未读数量与导航栏角标实时同步。原来的「公告」页内容已全部并入消息中心 → 系统通知。\n\n## 💡 小提示\n\n- 在论坛收到点赞/回复后，铃铛上的红色数字就是未读消息数\n- 点击消息会直接跳到对应文章，被回复的评论还会高亮闪烁，方便找到上下文\n- 文章审核通过/被驳回时，也会第一时间收到通知，不用反复去\"我的文章\"里看\n\n使用中遇到任何问题或有功能建议，欢迎在本帖下反馈，也可以到 QQ 群联系管理。祝大家建站愉快！⛏️",
+    "contentType": "markdown",
+    "reviewNote": "",
+    "liked": false,
+    "favorited": false
+  }
+}

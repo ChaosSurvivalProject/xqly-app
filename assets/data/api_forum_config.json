@@ -1,0 +1,11 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "bannerTitle": "星穹旅驿",
+    "bannerSubtitle": "分享建筑、红石与开服心得，向大佬提问，一起把服务器玩出花。",
+    "bannerImage": "/api/announcement/uploads/202610/1c2b2fdc648545b9bb5ec9c825c347fe.jpg",
+    "defaultSort": "latest",
+    "searchPlaceholder": "搜索帖子…"
+  }
+}

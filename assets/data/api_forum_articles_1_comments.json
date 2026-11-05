@@ -1,0 +1,90 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "id": 2,
+        "articleId": 1,
+        "content": "66",
+        "parentId": 0,
+        "replyToUserId": null,
+        "replyToName": null,
+        "likeCount": 1,
+        "liked": false,
+        "status": 1,
+        "author": {
+          "id": 2,
+          "name": "2281461058",
+          "avatar": null,
+          "badge": null
+        },
+        "createTime": "2026-10-03T19:04:04",
+        "replies": [
+          {
+            "id": 3,
+            "articleId": 1,
+            "content": "收到",
+            "parentId": 2,
+            "replyToUserId": 2,
+            "replyToName": "2281461058",
+            "likeCount": 0,
+            "liked": false,
+            "status": 1,
+            "author": {
+              "id": 2,
+              "name": "2281461058",
+              "avatar": null,
+              "badge": null
+            },
+            "createTime": "2026-10-03T19:46:14"
+          }
+        ]
+      },
+      {
+        "id": 1,
+        "articleId": 1,
+        "content": "欢迎大家发表看法😄",
+        "parentId": 0,
+        "replyToUserId": null,
+        "replyToName": null,
+        "likeCount": 2,
+        "liked": false,
+        "status": 1,
+        "author": {
+          "id": 1,
+          "name": "xqly-admin",
+          "avatar": null,
+          "badge": "管理员"
+        },
+        "createTime": "2026-10-03T19:02:53",
+        "replies": [
+          {
+            "id": 4,
+            "articleId": 1,
+            "content": "666",
+            "parentId": 1,
+            "replyToUserId": 1,
+            "replyToName": "xqly-admin",
+            "likeCount": 0,
+            "liked": false,
+            "status": 1,
+            "author": {
+              "id": 2,
+              "name": "2281461058",
+              "avatar": null,
+              "badge": null
+            },
+            "createTime": "2026-10-03T19:46:24"
+          }
+        ]
+      }
+    ],
+    "page": 1,
+    "pageSize": 10,
+    "totalPages": 1,
+    "total": 2,
+    "hasNext": false,
+    "hasPrev": false
+  }
+}

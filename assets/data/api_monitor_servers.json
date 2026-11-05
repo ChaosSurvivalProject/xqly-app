@@ -1,0 +1,25 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "servers": [
+      {
+        "id": 1,
+        "name": "主服务器",
+        "address": "serverone.codeyun.com",
+        "port": 12000,
+        "display": "serverone.codeyun.com:12000",
+        "isPrimary": true
+      },
+      {
+        "id": 2,
+        "name": "ayi服务器",
+        "address": "a8.okmc.cc",
+        "port": 45051,
+        "display": "a8.okmc.cc:45051",
+        "isPrimary": false
+      }
+    ],
+    "primary": 1
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "title": "服务器网站已上线",
+        "summary": "部署完成 ✅ 已上线 公网实测（走真实域名 + 公网 IP，证书校验通过）： | 路径 | 结果 | |---|---| | （主站 SPA） | 200 · | | | 200（深层路由返回 ，扫码",
+        "coverUrl": "/api/announcement/uploads/forum/202611/998c7cc506e44f7c8392e02940441487.webp",
+        "thumbUrl": "/api/announcement/uploads/forum/202611/998c7cc506e44f7c8392e02940441487.webp",
+        "category": {
+          "id": 7,
+          "code": "news",
+          "name": "新闻活动",
+          "color": "#ec4899",
+          "sortOrder": 6,
+          "isSystem": 0,
+          "isHidden": 0
+        },
+        "tags": [
+          {
+            "id": 1,
+            "name": "官方"
+          }
+        ],
+        "isTop": 1,
+        "isFeatured": 0,
+        "status": 1,
+        "statusText": "已发布",
+        "removeBy": "",
+        "resubmitCount": 3,
+        "author": {
+          "id": 1,
+          "name": "xqly-admin",
+          "avatar": null,
+          "badge": "管理员"
+        },
+        "viewCount": 23,
+        "likeCount": 1,
+        "commentCount": 4,
+        "favoriteCount": 1,
+        "publishTime": "2026-11-03T22:17:34",
+        "createTime": "2026-10-03T15:47:48",
+        "updateTime": "2026-11-03T22:17:38"
+      },
+      {
+        "id": 3,
+        "title": "消息中心上线啦！被点赞、被回复都会提醒你",
+        "summary": "大家好！本次网站更新带来了全新的消息中心，以后在社区发帖、评论、互动，再也不会错过任何消息。 🔔 新增：消息中心 点击导航栏头像左侧的铃铛按钮即可打开，有未读消息时会显示红色角标。消息分为三个页签： ",
+        "coverUrl": "/api/announcement/uploads/forum/202610/5297d46cae6b45b58b778fc27d71e9b0.png",
+        "thumbUrl": "/api/announcement/uploads/forum/202610/5297d46cae6b45b58b778fc27d71e9b0.png",
+        "category": {
+          "id": 7,
+          "code": "news",
+          "name": "新闻活动",
+          "color": "#ec4899",
+          "sortOrder": 6,
+          "isSystem": 0,
+          "isHidden": 0
+        },
+        "tags": [
+          {
+            "id": 2,
+            "name": "网站更新公告"
+          }
+        ],
+        "isTop": 0,
+        "isFeatured": 0,
+        "status": 1,
+        "statusText": "已发布",
+        "removeBy": "",
+        "resubmitCount": 0,
+        "author": {
+          "id": 1,
+          "name": "xqly-admin",
+          "avatar": null,
+          "badge": "管理员"
+        },
+        "viewCount": 23,
+        "likeCount": 2,
+        "commentCount": 5,
+        "favoriteCount": 1,
+        "publishTime": "2026-10-09T18:56:08",
+        "createTime": "2026-10-09T18:55:45",
+        "updateTime": "2026-10-09T18:56:08"
+      },
+      {
+        "id": 2,
+        "title": "生产环境更新完成",
+        "summary": "生产环境已更新完成。核对结果如下： 本次上线内容 服务器仓库从 推进到 ，共 4 个提交（3 个此前一直未上线的代码提交 + 1 个本次文档提交）： | 提交 | 内容 | | --- | --- |",
+        "coverUrl": "",
+        "thumbUrl": "",
+        "category": {
+          "id": 4,
+          "code": "guide",
+          "name": "攻略教程",
+          "color": "#6366f1",
+          "sortOrder": 3,
+          "isSystem": 0,
+          "isHidden": 0
+        },
+        "tags": [
+          {
+            "id": 1,
+            "name": "官方"
+          }
+        ],
+        "isTop": 0,
+        "isFeatured": 0,
+        "status": 1,
+        "statusText": "已发布",
+        "removeBy": "",
+        "resubmitCount": 0,
+        "author": {
+          "id": 1,
+          "name": "xqly-admin",
+          "avatar": null,
+          "badge": "管理员"
+        },
+        "viewCount": 10,
+        "likeCount": 0,
+        "commentCount": 2,
+        "favoriteCount": 0,
+        "publishTime": "2026-10-05T12:37:27",
+        "createTime": "2026-10-05T12:35:45",
+        "updateTime": "2026-10-05T12:37:27"
+      }
+    ],
+    "page": 1,
+    "pageSize": 50,
+    "totalPages": 1,
+    "total": 3,
+    "hasNext": false,
+    "hasPrev": false
+  }
+}

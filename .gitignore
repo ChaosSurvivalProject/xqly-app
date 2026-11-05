@@ -1,0 +1,27 @@
+# ---- 构建产物（含签名私钥，严禁提交）----
+build/
+*.jks
+*.keystore
+*.apk.idsig
+
+# ---- 爬取/复现时的工作目录 ----
+tools/mirror/
+tools/work/
+tools/__pycache__/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---- 编辑器 / 系统 ----
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ---- 本地配置（凭证一律走环境变量）----
+.env
+local.properties

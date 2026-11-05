@@ -1,0 +1,13 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "items": [],
+    "page": 2,
+    "pageSize": 50,
+    "totalPages": 1,
+    "total": 3,
+    "hasNext": false,
+    "hasPrev": true
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "code": 0,
+  "message": "success",
+  "data": [
+    {
+      "id": 1,
+      "code": "home",
+      "name": "首页",
+      "color": "#3b82f6",
+      "sortOrder": 0,
+      "isSystem": 1,
+      "isHidden": 0,
+      "articleCount": 0
+    },
+    {
+      "id": 2,
+      "code": "recommend",
+      "name": "推荐",
+      "color": "#f59e0b",
+      "sortOrder": 1,
+      "isSystem": 1,
+      "isHidden": 0,
+      "articleCount": 0
+    },
+    {
+      "id": 3,
+      "code": "chat",
+      "name": "闲聊灌水",
+      "color": "#22c55e",
+      "sortOrder": 2,
+      "isSystem": 0,
+      "isHidden": 0,
+      "articleCount": 0
+    },
+    {
+      "id": 4,
+      "code": "guide",
+      "name": "攻略教程",
+      "color": "#6366f1",
+      "sortOrder": 3,
+      "isSystem": 0,
+      "isHidden": 0,
+      "articleCount": 1
+    },
+    {
+      "id": 5,
+      "code": "help",
+      "name": "求助问答",
+      "color": "#ef4444",
+      "sortOrder": 4,
+      "isSystem": 0,
+      "isHidden": 0,
+      "articleCount": 0
+    },
+    {
+      "id": 6,
+      "code": "resource",
+      "name": "资源分享",
+      "color": "#14b8a6",
+      "sortOrder": 5,
+      "isSystem": 0,
+      "isHidden": 0,
+      "articleCount": 0
+    },
+    {
+      "id": 7,
+      "code": "news",
+      "name": "新闻活动",
+      "color": "#ec4899",
+      "sortOrder": 6,
+      "isSystem": 0,
+      "isHidden": 0,
+      "articleCount": 2
+    },
+    {
+      "id": 8,
+      "code": "suggest",
+      "name": "功能建议",
+      "color": "#8b5cf6",
+      "sortOrder": 7,
+      "isSystem": 0,
+      "isHidden": 0,
+      "articleCount": 0
+    }
+  ]
+}
