@@ -37,7 +37,7 @@ echo "=== [2/7] 链接资源与 Manifest ==="
   -R build/res.zip \
   --java build/gen \
   --min-sdk-version 24 --target-sdk-version 35 \
-  --version-code 3 --version-name 1.2.0 \
+  --version-code 4 --version-name 1.3.0 \
   --auto-add-overlay
 
 echo "=== [3/7] 编译 Java 源码 ==="

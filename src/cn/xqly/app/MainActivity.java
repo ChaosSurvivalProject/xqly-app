@@ -54,8 +54,8 @@ public class MainActivity extends Activity {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
 
-    public static final String VERSION_NAME = "1.2.0";
-    public static final int VERSION_CODE = 3;
+    public static final String VERSION_NAME = "1.3.0";
+    public static final int VERSION_CODE = 4;
 
     /** 版本比对结果载体（由 Updater 填充后回传 UI 线程） */
     public static class VersionResult {
@@ -90,6 +90,8 @@ public class MainActivity extends Activity {
     private int dockSide = 0;                 // 0 = 左侧（默认）, 1 = 右侧
     private android.content.SharedPreferences prefs;
     private long lastBack = 0L;
+    private int lastScrollY = 0;
+    private long lastCompactAt = 0L;
     private List<String> apiSnapshots = new ArrayList<>();
 
     @Override
@@ -261,14 +263,14 @@ public class MainActivity extends Activity {
         pill.addView(statusDot, sLp);
 
         // ① 品牌 / 当前页面（点击显示完整信息；长按打开设置）
-        View b0 = pillButton("✦", "首页", v ->
+        View b0 = pillButton("✦", "首页", DAWN, v ->
                 toast("星穹旅驿 · " + pageName + " · " + (offline ? "离线镜像" : "在线直连")));
         b0.setOnLongClickListener(v -> { openSettings(); return true; });
         pillPage = (TextView) ((LinearLayout) b0).getChildAt(1);
         pill.addView(b0);
 
         // ② 在线 / 离线 切换
-        View b1 = pillButton("◉", "在线", v -> toggleMode());
+        View b1 = pillButton("◉", "在线", DUSK, v -> toggleMode());
         modeLabel = (TextView) ((LinearLayout) b1).getChildAt(1);
         ((LinearLayout) b1).setOnLongClickListener(v -> {
             toast("点击切换「在线直连 / 离线镜像」"); return true;
@@ -276,19 +278,19 @@ public class MainActivity extends Activity {
         pill.addView(b1);
 
         // ③ 离线小游戏（纯本地资源，在线/离线都能玩）
-        pill.addView(pillButton("◈", "游戏", v -> openGame()));
+        pill.addView(pillButton("◈", "游戏", DUSK, v -> openGame()));
 
         // ④ 刷新
-        pill.addView(pillButton("↻", "刷新", v -> {
+        pill.addView(pillButton("↻", "刷新", DUSK, v -> {
             web.reload();
             toast(offline ? "已刷新离线镜像" : "正在重新连接站点");
         }));
 
         // ⑤ 换边
-        pill.addView(pillButton("⇄", "换边", v -> switchSide()));
+        pill.addView(pillButton("⇄", "换边", DUSK, v -> switchSide()));
 
         // ⑥ 检查更新（拉取 GitHub 最新 Release）
-        pill.addView(pillButton("⇧", "更新", v -> {
+        pill.addView(pillButton("⇧", "更新", DUSK, v -> {
             toast("正在检查更新…");
             updater.checkForUpdates(true);
         }));
@@ -335,15 +337,23 @@ public class MainActivity extends Activity {
         b.show();
     }
 
-    private View pillButton(String icon, String label, View.OnClickListener click) {
+    private View pillButton(String icon, String label, int accent, View.OnClickListener click) {
         LinearLayout b = new LinearLayout(this);
         b.setOrientation(LinearLayout.VERTICAL);
         b.setGravity(Gravity.CENTER);
         b.setClickable(true);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.TRANSPARENT);
-        bg.setCornerRadius(sdp(15));
-        b.setBackground(bg);
+
+        // 与底部 Dock 共用同一套玻璃材质：亮磨砂药丸（容器已是烟熏深底，形成层次）
+        GlassDrawable g = new GlassDrawable(sdp(14), accent, false);
+        g.setSmoked(false);
+        g.setIntensity(0.55f);
+        g.attach(b);
+        b.setBackground(new android.graphics.drawable.Drawable() {
+            @Override public void draw(Canvas c) { g.setBounds(0, 0, getBounds().width(), getBounds().height()); g.draw(c); }
+            @Override public void setAlpha(int a) { g.setAlpha(a); }
+            @Override public void setColorFilter(android.graphics.ColorFilter cf) { }
+            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        });
 
         TextView ic = new TextView(this);
         ic.setText(icon);
@@ -367,11 +377,11 @@ public class MainActivity extends Activity {
         b.setOnTouchListener((v, e) -> {
             int a = e.getAction();
             if (a == android.view.MotionEvent.ACTION_DOWN) {
-                v.animate().scaleX(0.86f).scaleY(0.86f).setDuration(110).start();
-                bg.setColor(Color.argb(42, 255, 255, 255));
+                v.animate().scaleX(0.90f).scaleY(0.90f).setDuration(110).start();
+                g.setIntensity(0.95f);
             } else if (a == android.view.MotionEvent.ACTION_UP || a == android.view.MotionEvent.ACTION_CANCEL) {
                 v.animate().scaleX(1f).scaleY(1f).setDuration(260).start();
-                bg.setColor(Color.TRANSPARENT);
+                g.setIntensity(0.55f);
             }
             return false;   // 不消费，保证 OnClickListener / OnLongClickListener 正常触发
         });
@@ -534,6 +544,7 @@ public class MainActivity extends Activity {
     private void configureWeb(WebView w) {
         WebSettings s = w.getSettings();
         s.setJavaScriptEnabled(true);
+        w.addJavascriptInterface(new DockScrollBridge(this), "AndroidDock");
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
@@ -574,6 +585,13 @@ public class MainActivity extends Activity {
                 hideSplash();
                 updateProgress(100);
                 syncTitle();
+                // 注入滚动监听：iOS 26 标签栏式「下滚收拢 / 上滚展开」
+                view.evaluateJavascript(
+                        "javascript:(function(){if(window.__xqlyDock)return;window.__xqlyDock=1;"
+                                + "function h(){var y=window.scrollY||document.documentElement.scrollTop"
+                                + "||document.body.scrollTop||0;if(window.AndroidDock)window.AndroidDock.onScroll(y|0);}"
+                                + "window.addEventListener('scroll',h,true);"
+                                + "document.addEventListener('scroll',h,true);})();", null);
             }
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
@@ -798,6 +816,25 @@ public class MainActivity extends Activity {
         statusDot.setBackground(sd);
     }
 
+    /** 由网页滚动事件驱动：向下滚收拢 Dock，回到顶部或上滚时展开 */
+    private void onWebScroll(int y) {
+        int dy = y - lastScrollY;
+        lastScrollY = y;
+        long now = System.currentTimeMillis();
+        if (now - lastCompactAt < 220) return;
+        if (dock == null || gameOpen || archiveOpen) return;
+        if (y < 60) {
+            dock.setCompact(false);
+            lastCompactAt = now;
+        } else if (dy > 12) {
+            dock.setCompact(true);
+            lastCompactAt = now;
+        } else if (dy < -8) {
+            dock.setCompact(false);
+            lastCompactAt = now;
+        }
+    }
+
     private void syncTitle() {
         pageName = routeName(currentPath);
         if (pillPage == null) return;
@@ -898,6 +935,17 @@ public class MainActivity extends Activity {
     }
 
     // ---------------------------------------------------------------- 装饰 View
+    /** 网页滚动桥：把页面滚动事件回传给 Java 层，用于 Dock 收拢/展开 */
+    private static class DockScrollBridge {
+        private final java.lang.ref.WeakReference<MainActivity> ref;
+        DockScrollBridge(MainActivity a) { ref = new java.lang.ref.WeakReference<>(a); }
+        @android.webkit.JavascriptInterface
+        public void onScroll(int y) {
+            MainActivity a = ref.get();
+            if (a != null) a.runOnUiThread(() -> a.onWebScroll(y));
+        }
+    }
+
     /** 缓慢漂移的双色氛围光 */
     private static class GlowView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);

@@ -3,6 +3,7 @@ build/
 *.jks
 *.keystore
 *.apk.idsig
+dist/
 
 # ---- 爬取/复现时的工作目录 ----
 tools/mirror/

@@ -37,6 +37,7 @@ public class GlassDrawable extends Drawable {
     private final Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint specular = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint catchLight = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public GlassDrawable(float radiusDp, int accent, boolean flowing) {
         this.radius = radiusDp;
@@ -165,6 +166,11 @@ public class GlassDrawable extends Drawable {
         sheen.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
                 col, pos, Shader.TileMode.CLAMP));
         c.drawRoundRect(rect, r, r, sheen);
+
+        // ---- 4.5 顶部受光：玻璃上沿捕捉环境光，制造柔和高光（Apple 玻璃质感关键） ----
+        catchLight.setShader(new RadialGradient(rect.left + w * 0.5f, rect.top - h * 0.12f, w * 0.78f,
+                Color.argb((int) (46 * a), 255, 255, 255), Color.TRANSPARENT, Shader.TileMode.CLAMP));
+        c.drawRoundRect(rect, r, r, catchLight);
 
         // ---- 5. 折射描边：上亮下暗，右下补一道冷光 ----
         rim.setStrokeWidth(Math.max(1.2f, h * 0.012f));
