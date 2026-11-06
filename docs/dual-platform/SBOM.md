@@ -53,7 +53,7 @@ python3 tools/gen_release_assets.py release/ 2.0.1
 
 | 产物 | 生成方 | 本机（Linux 沙箱） | 命名规则 |
 |---|---|---|---|
-| Android 正式签名 APK | `build.sh` + 仓库外发布密钥 | ✅ 真实生成 | `xqly-app-v2.0.1.apk`（OTA 主资产）、`星穹旅驿-2.0.1-android-universal-release.apk`（下载别名） |
+| Android 正式签名 APK | `build.sh` + 仓库外发布密钥 | ✅ 真实生成 | `xqly-app-v2.0.1.apk`（OTA 主资产）、`xqly-app-v2.0.1-android-universal-release.apk`（ASCII 下载别名） |
 | Windows 签名 MSIX 安装版 | CI `windows-latest` + `makeappx.exe` | ❌ 本机无工具链，不伪造 | `星穹旅驿-2.0.1-windows-x64-setup.msix` |
 | Windows 便携 ZIP | CI `windows-latest` + `Compress-Archive` | ❌ 本机无工具链，不伪造 | `星穹旅驿-2.0.1-windows-x64-portable.zip` |
 | `SHA256SUMS.txt` / `SBOM.spdx.json` | `gen_release_assets.py` | ✅ 对真实存在的资产生成 | 随 Release |

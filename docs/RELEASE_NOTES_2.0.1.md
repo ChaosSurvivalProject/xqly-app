@@ -39,7 +39,7 @@
 | 文件 | 说明 |
 |---|---|
 | `xqly-app-v2.0.1.apk` | **Android 正式签名 APK**，自动更新链识别的主资产 |
-| `星穹旅驿-2.0.1-android-universal-release.apk` | 同一 APK 的中文下载别名（字节相同） |
+| `xqly-app-v2.0.1-android-universal-release.apk` | 同一 APK 的 ASCII 下载别名（字节相同；用 ASCII 避免 GitHub 资产名归一化） |
 | `SHA256SUMS.txt` | 全部资产的 SHA-256 |
 | `SBOM.spdx.json` | SPDX 2.3 软件物料清单 |
 | `RELEASE_NOTES_2.0.1.md` | 本说明 |

@@ -188,7 +188,9 @@ jobs:
           V="${{ needs.validate.outputs.version }}"
           mkdir -p release
           cp artifacts/星穹旅驿.apk "release/xqly-app-v$V.apk"          # OTA 主资产（命名受更新链约束）
-          cp artifacts/星穹旅驿.apk "release/星穹旅驿-$V-android-universal-release.apk"
+          # 资产名统一用 ASCII：GitHub 会把中文资产名归一成 default.apk，
+          # 导致 SHA256SUMS.txt 里的文件名对不上（v2.0.0 发布时实证）。
+          cp artifacts/星穹旅驿.apk "release/xqly-app-v$V-android-universal-release.apk"
           if [ -f artifacts/windows-setup.msix ]; then
             cp artifacts/windows-setup.msix "release/星穹旅驿-$V-windows-x64-setup.msix"
           fi

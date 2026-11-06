@@ -1,6 +1,6 @@
 # v2.0.1 双平台改造 · 真实验收报告
 
-验收时间 2026-11-05 15:27 UTC（最终全量复验）· 产物 `release/` · 审计报告见 [AUDIT_2.0.1.md](AUDIT_2.0.1.md)
+验收时间 2026-11-05 15:27 UTC（最终全量复验）· 发布回填 2026-11-06 00:07 UTC · 产物 `release/` · 审计报告见 [AUDIT_2.0.1.md](AUDIT_2.0.1.md)
 
 > **本报告只记录实际执行过的命令及其输出。** 未做的测试、未产出的二进制、未测量的性能数字一律标注为「未验证」，不以编译成功、本地可运行或源码存在冒充完成。
 
@@ -55,7 +55,7 @@
 | 12 | 构建并验证三类产物 | ⚠ **1/3** | Android APK ✅；Windows MSIX / 便携 ZIP 需 CI，见第 5 节 |
 | 13 | 跑全部测试 | ✅ | 309/309 通过，见第 3 节 |
 | 14 | 输出真实验收报告 | ✅ | 本文 |
-| 15 | GitHub Actions 双平台 CI 与 Release 草稿 | ✅ 配置齐备 | `ci.yml`（5 jobs）、`release.yml`（4 jobs）；YAML 语法实测通过；Release 创建状态见第 9 节 |
+| 15 | GitHub Actions 双平台 CI 与 Release 草稿 | ✅ 已创建草稿 | `ci.yml`（5 jobs）、`release.yml`（4 jobs）；YAML 语法实测通过；`v2.0.1` 草稿已创建（5 个 ASCII 资产）+ 端到端下载校验通过，见第 9 节 |
 | 16 | 隐私政策 / 权限说明 / 第三方依赖清单 / 软件清单 | ✅ | `PRIVACY.md`、`PERMISSIONS.md`、`THIRD_PARTY.md`、`dual-platform/SBOM.md` + `release/SBOM.spdx.json` |
 | 17 | 无证书/授权时安全降级 + 人工步骤 | ✅ | `sign.ps1` → `SIGN_RESULT=UNSIGNED`；MSIX Publisher 明示测试主体；11 项人工补齐清单见 [MIGRATION_MAP 第 6 节](MIGRATION_MAP.md) |
 
@@ -116,7 +116,7 @@ ctest（顶层 windows/CMakeLists.txt）: 100% tests passed, 1/1
 ```
 生成 2 个资产的摘要与 SBOM：
   de181ef7f1ad  xqly-app-v2.0.1.apk
-  de181ef7f1ad  星穹旅驿-2.0.1-android-universal-release.apk
+  de181ef7f1ad  xqly-app-v2.0.1-android-universal-release.apk
   SHA256SUMS.txt / SBOM.spdx.json（16 个组件）
 ```
 
@@ -150,6 +150,7 @@ CI 生成 Windows 产物后会重新运行生成器，把三类产物一并纳�
 | 8 | 自有界面品牌词残留 | `GlassDrawable.java`「液态玻璃」、`README.md`「原生液态玻璃」、自有 CSS/HTML 的 `-apple-system` | 统一「星穹玻璃」+ 中性字体栈；镜像资源保持原字节并如实说明 |
 | 9 | `windows/README.md` 指向不存在的 `docs/双平台改造验收.md` | 全仓 Markdown 坏链接扫描 | 指向 `docs/dual-platform/ACCEPTANCE_2.0.1.md` |
 | 10 | 改动 `assets/` 后清单哈希失效 | 门禁曾捕获（历史项，本轮遵循「生成先于测试」） | `build.sh` 第 2 步先生成/校验资源，再跑测试 |
+| 11 | 中文 Release 资产名会被 GitHub 归一 | `gh release view v2.0.0 --json assets` 显示中文名资产被归一（历史仅存 ASCII 名） | 下载别名统一改为 `xqly-app-v2.0.1-android-universal-release.apk`；`release.yml` 同步修正并加注释 |
 
 ---
 
@@ -197,11 +198,45 @@ CI 生成 Windows 产物后会重新运行生成器，把三类产物一并纳�
 
 ---
 
-## 9. 发布状态
+## 9. 发布状态（真实执行结果）
 
-`release/` 已生成可直接上传的 5 个文件（2 个 APK、`SHA256SUMS.txt`、`SBOM.spdx.json`、`RELEASE_NOTES_2.0.1.md`），摘要自校验通过。`ci.yml` / `release.yml` 已就位并通过 YAML 与命令级复验。
+### 9.1 源码提交与推送
 
-GitHub Release 创建、源码推送与资产端到端下载校验的结果，见最终发布记录；`release.yml` 的 `draft` job 在检测到 Release 已存在时会跳过创建，避免 CI 用测试签名 APK 覆盖正式签名资产。
+| 项 | 值 |
+|---|---|
+| 提交 | `2a41a28` feat: v2.0.1 双平台工程基线（80 文件，+8,525 / −197） |
+| 推送 | `23cc277..2a41a28 → main`，`scripts/publish.sh` 一次成功，远端 HEAD 校验通过 |
+| 入库自查 | `git show --name-only` 确认无 `*.jks` / `*.apk` / `*.pfx` 等密钥或二进制产物 |
+
+### 9.2 GitHub Release（草稿）
+
+| 项 | 值 |
+|---|---|
+| 仓库 | `ChaosSurvivalProject/xqly-app`（公开） |
+| Tag / 状态 | `v2.0.1` · **草稿（draft）** · Release ID `435394939` |
+| 标题 | `星穹旅驿 2.0.1 · Windows + Android` |
+| 资产（5 个，全部 ASCII 命名） | `xqly-app-v2.0.1.apk`、`xqly-app-v2.0.1-android-universal-release.apk`、`SHA256SUMS.txt`、`SBOM.spdx.json`、`RELEASE_NOTES_2.0.1.md` |
+| 附带清理 | 历史 `v1.3.0` Release 标题去除品牌模仿表述 |
+
+> 草稿为 GitHub 的 **untagged** 状态（草稿不自动建 git tag），普通 `gh release download by tag` 会走不稳定的 `github.com` 通道；本轮改用 API assets 通道做端到端校验。按要求保留草稿，不冒充正式发布；正式发布与 Windows 产物由 CI `windows-latest` 就绪后完成。
+
+### 9.3 端到端下载校验（真实下载，非仅元数据）
+
+主 APK 资产 `713899764` 经 `api.github.com/.../releases/assets/{id}` + `Accept: application/octet-stream` 真实下载：
+
+| 校验项 | 结果 |
+|---|---|
+| HTTP / 体积 / 耗时 | `HTTP 200` / `6,661,554 bytes` / `3.11s`（`2,142,206 B/s`） |
+| 下载文件 SHA-256 | `de181ef7f1adb5f9579d8fe6e414bd3ceb82e2978610d6643e04c73dbed38263` |
+| 与本地 `dist/星穹旅驿.apk` 字节比对 | **PASS 完全一致**（`cmp`） |
+| 签名证书 SHA-256 | `e1e8edc56e9700a27ab2cd4ba5f45fa0ba1bd9a88e4a261de7ef3684b3c21c05`（与既有发布证书一致，可覆盖升级） |
+| APK 版本 | `versionCode='6' versionName='2.0.1'`（`aapt dump badging`） |
+| 远端 asset `digest` vs 本地 `SHA256SUMS.txt` | 2 个 APK 资产逐项 **PASS 完全一致** |
+| `SHA256SUMS.txt` 下载文件 | 与本地发布目录字节一致，`sha256sum -c` 通过 |
+
+> 首次尝试时该通道因网络波动只下到 `1.2M` 即超时（`curl` 退出码 28）；配额重置后重试完整成功。已如实记录，未用「元数据校验通过」冒充「下载成功」。
+
+`release/` 5 个文件可直接上传；`ci.yml` / `release.yml` 已就位并通过 YAML 与命令级复验。`release.yml` 的 `draft` job 在检测到 Release 已存在时会跳过创建，避免 CI 用测试签名 APK 覆盖正式签名资产。
 
 ---
 
