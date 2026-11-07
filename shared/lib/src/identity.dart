@@ -10,11 +10,11 @@ class AppIdentity {
   static const String androidPackage = 'cn.xqly.app';
 
   /// 当前业务版本：Android 与 Windows 使用同一个业务版本，不复制规则实现。
-  static const String versionName = '2.0.1';
-  static const int versionCode = 6;
+  static const String versionName = '2.1.0';
+  static const int versionCode = 7;
 
   /// Windows 四段版本（MSIX / VERSIONINFO 要求）。
-  static const String windowsVersion = '2.0.1.0';
+  static const String windowsVersion = '2.1.0.0';
 
   static const String publisher = 'ChaosSurvivalProject';
   static const String repo = 'ChaosSurvivalProject/xqly-app';
@@ -63,5 +63,5 @@ class AppIdentity {
 
   /// 用户友好的中文别名资产。仅作为附加下载项上传，不参与 OTA 解析。
   static const String userFacingAndroidAsset =
-      '星穹旅驿-2.0.1-android-universal-release.apk';
+      '星穹旅驿-2.1.0-android-universal-release.apk';
 }

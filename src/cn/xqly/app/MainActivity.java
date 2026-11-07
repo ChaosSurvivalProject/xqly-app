@@ -57,6 +57,7 @@ import cn.xqly.app.core.SearchIndex;
 import cn.xqly.app.core.UrlPolicy;
 import cn.xqly.app.core.UserData;
 import cn.xqly.app.core.UserPrefs;
+import cn.xqly.app.ui.LibraryView;
 
 /** 星穹旅驿 · 星穹玻璃设计系统客户端（v2.0.0 安全加固版） */
 public class MainActivity extends Activity implements WebBridge.Host {
@@ -66,8 +67,8 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
 
-    public static final String VERSION_NAME = "2.0.1";
-    public static final int VERSION_CODE = 6;
+    public static final String VERSION_NAME = "2.1.0";
+    public static final int VERSION_CODE = 7;
 
     private FrameLayout root;
     private WebView web, archiveWeb, gameWeb, libraryWeb;
@@ -160,7 +161,11 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
         archiveOverlay = buildLocalOverlay("archive.html");
         root.addView(archiveOverlay, new FrameLayout.LayoutParams(-1, -1));
-        libraryOverlay = buildLocalOverlay("library.html");
+        // library 用原生「星穹玻璃」界面（LibraryView），不再走 WebView 壳。
+        // 仍创建 libraryWeb 并保非 null，以维持生命周期遍历（onResume/onPause/destroy）稳定。
+        libraryWeb = new WebView(this);
+        configureWeb(libraryWeb, false);
+        libraryOverlay = buildLibraryOverlay();
         root.addView(libraryOverlay, new FrameLayout.LayoutParams(-1, -1));
         gameOverlay = buildLocalOverlay("game.html");
         root.addView(gameOverlay, new FrameLayout.LayoutParams(-1, -1));
@@ -892,8 +897,31 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
     private void openArchive() { archiveOpen = true; activeWeb = archiveWeb; showOverlay(archiveOverlay); }
     private void closeArchive() { if (!archiveOpen) return; archiveOpen = false; activeWeb = web; hideOverlay(archiveOverlay); }
-    private void openLibrary() { libraryOpen = true; activeWeb = libraryWeb; showOverlay(libraryOverlay); }
+    private void openLibrary() { libraryOpen = true; activeWeb = web; showOverlay(libraryOverlay); }
     private void closeLibrary() { if (!libraryOpen) return; libraryOpen = false; activeWeb = web; hideOverlay(libraryOverlay); }
+
+    /** 原生资料库浮层：直接承载 LibraryView，复用 core 的搜索/收藏，不加载 WebView。 */
+    private FrameLayout buildLibraryOverlay() {
+        FrameLayout f = new FrameLayout(this);
+        f.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
+        if (searchIndex == null) loadSearchIndex();
+        if (searchIndex != null) {
+            LibraryView lib = new LibraryView(this, searchIndex, userPrefs,
+                    (id, title) -> openLibraryDoc(id, title));
+            f.addView(lib, new FrameLayout.LayoutParams(-1, -1));
+        }
+        return f;
+    }
+
+    /** 资料库点击「打开」：关闭所有浮层并导航到在线内容（离线则回落无网态）。 */
+    private void openLibraryDoc(String id, String title) {
+        closeLibrary();
+        closeArchive();
+        closeGame();
+        String path = (id == null || id.isEmpty()) ? "/" : id;
+        web.loadUrl(BASE + path);
+        activeWeb = web;
+    }
     private void openGame() {
         if (archiveOpen) closeArchive();
         if (libraryOpen) closeLibrary();

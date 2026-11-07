@@ -32,7 +32,8 @@ public final class StateOverlay extends FrameLayout {
 
     public StateOverlay(Context ctx) {
         super(ctx);
-        setBackgroundColor(0xE6050713);
+        setBackgroundColor(DesignTokens.palette(DesignTokens.Theme.DARK, DesignTokens.Mode.GLASS)
+                .get(DesignTokens.ColorKey.OVERLAY));
         setClickable(true);
         setFocusable(true);
 
@@ -108,21 +109,11 @@ public final class StateOverlay extends FrameLayout {
 
     public AppState.Phase phase() { return phase; }
 
-    private android.graphics.drawable.GradientDrawable glassBg() {
-        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                new int[]{0xF01A2244, 0xF00B1030});
-        g.setCornerRadius(dp(DesignTokens.R_DIALOG));
-        g.setStroke(1, Color.argb(90, 200, 220, 255));
-        return g;
+    private GlassDrawable glassBg() {
+        return new GlassDrawable(DesignTokens.R_DIALOG, 0xFFA87CFF, false);
     }
-    private android.graphics.drawable.GradientDrawable actionBg() {
-        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0x55FFCE86, 0x55A87CFF});
-        g.setCornerRadius(dp(DesignTokens.R_CONTROL));
-        g.setStroke(1, Color.argb(120, 255, 214, 160));
-        return g;
+    private GlassDrawable actionBg() {
+        return new GlassDrawable(DesignTokens.R_CONTROL, 0xFFFFCE86, false);
     }
     private int dp(float v) { return (int) (v * getResources().getDisplayMetrics().density + 0.5f); }
 }

@@ -31,6 +31,7 @@ public final class FeatureFlags {
             new Flag("sound", false,        "游戏音效（默认关闭）"),
             new Flag("haptics", true,       "游戏震动"),
             new Flag("daily_challenge", true, "每日挑战"),
+            new Flag("cloud_sync", false, "跨设备云端同步（默认关闭，仅本地导出/导入）"),
     };
 
     public static Map<String, Boolean> defaults() {

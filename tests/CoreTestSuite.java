@@ -27,6 +27,7 @@ public final class CoreTestSuite {
         gameTests(h);
         searchTests(h);
         userDataTests(h);
+        syncTests(h);
         stateTests(h);
         bundleTests(h);
         System.exit(h.run());
@@ -98,6 +99,65 @@ public final class CoreTestSuite {
             eqInt(UserData.recentSearch(p).size(), 8, "capped");
             UserData.recordSearch(p, "词11");
             eq(UserData.recentSearch(p).get(0), "词11", "front");
+        });
+    }
+
+    // ---------------------------------------------------------------- 本地优先同步引擎
+    private static void syncTests(TestHarness h) {
+        h.group("SyncEngine 本地优先同步（默认不联网）");
+        h.test("导出包可解析且校验和自洽", () -> {
+            UserPrefs p = new UserData.MapPrefs();
+            UserData.toggleFavorite(p, "a");
+            UserData.toggleFavorite(p, "b");
+            UserData.recordHistory(p, "h1");
+            String pkg = SyncEngine.exportPackage(p, "dev-1", 1000L);
+            SyncEngine.Parsed q = SyncEngine.parsePackage(pkg);
+            eq(q.reject, SyncEngine.Reject.OK, "ok");
+            eq(q.deviceId, "dev-1", "device");
+            isTrue(q.categories.containsKey(SyncEngine.C_FAVORITES), "has favs");
+        });
+        h.test("篡改后校验和失败整体拒绝", () -> {
+            UserPrefs p = new UserData.MapPrefs();
+            UserData.toggleFavorite(p, "a");
+            String pkg = SyncEngine.exportPackage(p, "dev-1", 1000L);
+            String tampered = pkg.replace("\"a\"", "\"X\"");  // 改了数据但 checksum 未重算
+            eq(SyncEngine.parsePackage(tampered).reject, SyncEngine.Reject.BAD_CHECKSUM, "checksum");
+        });
+        h.test("降 schema / 空设备 / 畸形 JSON 拒绝", () -> {
+            eq(SyncEngine.parsePackage("{\"schema\":99,\"deviceId\":\"d\",\"generatedAt\":1,\"categories\":{}}").reject,
+                    SyncEngine.Reject.BAD_SCHEMA, "schema");
+            eq(SyncEngine.parsePackage("{\"schema\":1,\"deviceId\":\"\",\"generatedAt\":1,\"categories\":{}}").reject,
+                    SyncEngine.Reject.NO_DEVICE, "device");
+            eq(SyncEngine.parsePackage("{not json").reject, SyncEngine.Reject.BAD_JSON, "json");
+        });
+        h.test("合并为并集且不删本地项（本地优先）", () -> {
+            UserPrefs local = new UserData.MapPrefs();
+            UserData.toggleFavorite(local, "keep");          // 本地独有，必须保留
+            UserPrefs remoteSrc = new UserData.MapPrefs();
+            UserData.toggleFavorite(remoteSrc, "keep");
+            UserData.toggleFavorite(remoteSrc, "new");
+            String pkg = SyncEngine.exportPackage(remoteSrc, "dev-2", 2000L);
+            SyncEngine.Parsed q = SyncEngine.parsePackage(pkg);
+            SyncEngine.MergeReport r = SyncEngine.merge(q, local);
+            isTrue(r.ok, "merged");
+            isTrue(UserData.isFavorite(local, "keep"), "local kept");
+            isTrue(UserData.isFavorite(local, "new"), "remote added");
+            eqInt(r.setsAdded, 1, "added count");
+        });
+        h.test("远端更旧时映射类保留本地（不覆盖）", () -> {
+            UserPrefs local = new UserData.MapPrefs();
+            local.put(UserData.K_READING, "{\"fontScale\":1.0}");
+            local.put(SyncEngine.K_BASELINE_AT, "5000");      // 本地基线比远端新
+            UserPrefs remoteSrc = new UserData.MapPrefs();
+            remoteSrc.put(UserData.K_READING, "{\"fontScale\":2.0}");
+            String pkg = SyncEngine.exportPackage(remoteSrc, "dev-3", 1000L);  // generatedAt 更旧
+            SyncEngine.MergeReport r = SyncEngine.merge(SyncEngine.parsePackage(pkg), local);
+            eq(UserData.reading(local).get("fontScale"), 1.0, "local preserved");
+            eqInt(r.skipped, 1, "skipped");
+            isTrue(r.mapsUpdated == 0, "no overwrite");
+        });
+        h.test("默认无云端传输（不联网）", () -> {
+            isTrue(!FeatureFlags.enabled(FeatureFlags.defaults(), "cloud_sync"), "cloud_sync off by default");
         });
     }
 

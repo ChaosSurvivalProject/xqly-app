@@ -18,7 +18,8 @@ public final class AppState {
         VALIDATION_FAILED, // 校验失败
         PERMISSION_DENIED, // 权限拒绝
         STORAGE_LOW,       // 存储空间不足
-        PENDING_SWITCH     // 内容版本待重启/待切换
+        PENDING_SWITCH,    // 内容版本待重启/待切换
+        NO_RESULT          // 有查询但无命中（区别于「从未搜索过的空白」EMPTY）
     }
 
     public enum Page { HOME, LIBRARY, ARTICLE, SEARCH, FAVORITE, DOWNLOAD, UPDATE, GAME }
@@ -57,6 +58,8 @@ public final class AppState {
                 return new ViewState(phase, "存储空间不足", "请清理空间后重试，收藏与存档不会受影响", true, false, false, "清理缓存");
             case PENDING_SWITCH:
                 return new ViewState(phase, "新版本已就绪", "新内容将在下次启动时启用，也可立即切换", false, true, false, "立即切换");
+            case NO_RESULT:
+                return new ViewState(phase, noResultTitle(page), "换个关键词或筛选条件再试试", false, false, false, "");
             default:
                 return new ViewState(phase, "", "", false, true, false, "");
         }
@@ -71,6 +74,15 @@ public final class AppState {
             case GAME: return "还没有对局记录";
             case LIBRARY: return "还没有阅读记录";
             default: return "暂无内容";
+        }
+    }
+
+    private static String noResultTitle(Page p) {
+        switch (p) {
+            case FAVORITE: return "收藏里没有匹配项";
+            case SEARCH: return "没有找到相关结果";
+            case LIBRARY: return "没有找到相关文档";
+            default: return "没有找到相关内容";
         }
     }
 

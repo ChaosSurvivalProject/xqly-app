@@ -33,7 +33,7 @@ public final class SearchIndex {
     public static final class Hit {
         public final String id, title, snippet;
         public final double score;
-        Hit(String id, String title, String snippet, double score) {
+        public Hit(String id, String title, String snippet, double score) {
             this.id = id; this.title = title; this.snippet = snippet; this.score = score;
         }
     }
@@ -45,6 +45,8 @@ public final class SearchIndex {
         public int docCount() { return docs.size(); }
         public int termCount() { return postings.size(); }
         public int recentCount() { return recent.size(); }
+        /** 只读快照，供 UI 层（cn.xqly.app.ui）遍历，避免对包外暴露可变列表。 */
+        public List<Doc> docs() { return Collections.unmodifiableList(docs); }
     }
 
     public static Index build(List<Doc> input) {
