@@ -252,7 +252,8 @@ jobs:
           fi
           gh release create "v$V" release/* --repo "$REPO" \
             --title "星穹旅驿 $V · Windows + Android" \
-            --notes-file "release/RELEASE_NOTES_$V.md" --draft
+            --notes-file "release/RELEASE_NOTES_$V.md" --draft \
+            --target "$GITHUB_SHA"
       - name: 像用户一样下载并验证哈希与签名
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
