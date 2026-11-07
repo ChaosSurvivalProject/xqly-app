@@ -61,6 +61,7 @@ jobs:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
@@ -86,9 +87,6 @@ jobs:
   windows-core:
     name: Windows 核心 · CMake 编译 + 34 测试
     runs-on: windows-latest
-    # 同 release.yml：组织 windows-latest 运行器缺 MSVC 时该任务会失败，
-    # 设 continue-on-error 避免其阻断整体 CI 信号（Android 为可验证主交付）。
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: 配置
@@ -102,7 +100,6 @@ jobs:
   windows-shell:
     name: Windows 外壳 · MSVC 编译 + 冒烟测试
     runs-on: windows-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: 诊断 VS / MSVC 可用性

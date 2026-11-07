@@ -87,6 +87,7 @@ jobs:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
@@ -124,12 +125,6 @@ jobs:
     name: 构建 Windows x64 安装版 / 便携版
     needs: validate
     runs-on: windows-latest
-    # 说明：本仓库所属组织的 windows-latest 运行器环境中 CMake 无法定位任何
-    # Visual Studio 实例（历史多次构建均报 "could not find any instance of
-    # Visual Studio"）。这是运行器/镜像缺 MSVC 所致，非源码问题。
-    # 设 continue-on-error，使 Windows 失败时仍不阻断 Android 发布；
-    # 若运行器确实无 VS，Windows 二进制需在本机 VS2022 环境按 README 构建。
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: 诊断 VS / MSVC 可用性

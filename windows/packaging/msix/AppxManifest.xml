@@ -20,7 +20,7 @@
   <Identity
     Name="ChaosSurvivalProject.XQLY"
     Publisher="CN=XQLY-Test-Signing, O=ChaosSurvivalProject, C=CN"
-    Version="2.0.1.0"
+    Version="2.1.0.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
@@ -72,5 +72,7 @@
   <!-- 只声明实际需要的最小 capability，不使用宽泛权限逃避设计 -->
   <Capabilities>
     <Capability Name="internetClient" />
+    <!-- Win32 桌面应用（FullTrustApplication 入口点）打包为 MSIX 必须声明此受限能力 -->
+    <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 </Package>
