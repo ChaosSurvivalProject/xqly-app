@@ -20,8 +20,9 @@
 所有资产在 Release 中附带 `SHA256SUMS.txt`，下载后请 `sha256sum -c SHA256SUMS.txt` 校验。
 
 - `xqly-app-v2.1.0.apk`（OTA 主资产，命名受更新链约束）
-- `星穹旅驿-2.1.0-android-universal-release.apk`（中文别名，仅附加下载项）
-- Windows 安装版（`.msix`，测试签名）/ 便携版（`.zip`）由 CI 在 `windows-latest` 生成
+- `xqly-app-v2.1.0-android-universal-release.apk`（附加下载项）
+- `xqly-app-v2.1.0-windows-x64-setup.msix`（Windows 安装版，测试签名）
+- `xqly-app-v2.1.0-windows-x64-portable.zip`（Windows 便携版）
 
 ## 知道的边界（如实标注）
 

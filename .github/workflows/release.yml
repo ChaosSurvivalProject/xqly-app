@@ -209,15 +209,17 @@ jobs:
           # 导致 SHA256SUMS.txt 里的文件名对不上（v2.0.0 发布时实证）。
           cp artifacts/星穹旅驿.apk "release/xqly-app-v$V-android-universal-release.apk"
           # upload-artifact@v4 会保留 dist/ 目录前缀，兼容两种布局再拷贝。
+          # 资产名必须用 ASCII：GitHub 会把中文名归一/截断（APK 已用 xqly-app-v* 前缀规避），
+          # 中文前缀的 Windows 资产上传后会丢失前缀，导致 SHA256SUMS.txt 对不上。
           MSIX=$(ls artifacts/dist/windows-setup.msix artifacts/windows-setup.msix 2>/dev/null | head -1)
           ZIP=$(ls artifacts/dist/windows-portable.zip artifacts/windows-portable.zip 2>/dev/null | head -1)
           if [ -n "$MSIX" ]; then
-            cp "$MSIX" "release/星穹旅驿-$V-windows-x64-setup.msix"
+            cp "$MSIX" "release/xqly-app-v$V-windows-x64-setup.msix"
           else
             echo "::warning::未找到 windows-setup.msix，跳过 MSIX 资产"
           fi
           if [ -n "$ZIP" ]; then
-            cp "$ZIP" "release/星穹旅驿-$V-windows-x64-portable.zip"
+            cp "$ZIP" "release/xqly-app-v$V-windows-x64-portable.zip"
           else
             echo "::warning::未找到 windows-portable.zip，跳过便携版资产"
           fi
