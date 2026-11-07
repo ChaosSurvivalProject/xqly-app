@@ -236,15 +236,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           V="${{ needs.validate.outputs.version }}"
-          # 若运营团队已用仓库外正式签名密钥在本机发布过 v$V，绝不覆盖该 Release：
-          # CI 没有发布密钥时构建的是测试签名 APK，覆盖会破坏可覆盖升级链。
+          # 若 v$V 已正式发布（非草稿），绝不覆盖——CI 测试签名产物会破坏可覆盖升级链。
+          # 若只是上一次流水线留下的草稿，则删掉用本次最新产物重建（幂等，便于反复重跑）。
           if gh release view "v$V" --repo "$REPO" >/dev/null 2>&1; then
-            echo "::warning::Release v$V 已存在，跳过创建以免覆盖正式签名资产"
-          else
-            gh release create "v$V" release/* --repo "$REPO" \
-              --title "星穹旅驿 $V · Windows + Android" \
-              --notes-file "release/RELEASE_NOTES_$V.md" --draft
+            IS_DRAFT=$(gh release view "v$V" --repo "$REPO" --json isDraft --jq '.isDraft' 2>/dev/null)
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo "::warning::v$V 已存在草稿，删除并以本次最新产物重建"
+              gh release delete "v$V" --repo "$REPO" --yes
+            else
+              echo "::warning::v$V 已正式发布，跳过创建以免覆盖正式签名资产"
+              exit 0
+            fi
           fi
+          gh release create "v$V" release/* --repo "$REPO" \
+            --title "星穹旅驿 $V · Windows + Android" \
+            --notes-file "release/RELEASE_NOTES_$V.md" --draft
       - name: 像用户一样下载并验证哈希与签名
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
