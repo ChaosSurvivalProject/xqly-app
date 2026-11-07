@@ -73,15 +73,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
-      - uses: android-actions/setup-android@v3
+      # 注意：不再使用 android-actions/setup-android@v3 —— 该动作会硬装已废弃的
+      # `tools` 包（sdkmanager 在新版 SDK 中已移除），导致每次构建在 setup 阶段失败。
+      # ubuntu-latest 运行器已预装 Android SDK（ANDROID_HOME 已设），直接复用即可。
       - uses: dart-lang/setup-dart@v1
         # 必须写成块样式：flow mapping 里的 ${{ }} 会被 YAML 当成嵌套花括号。
         with:
           sdk: ${{ env.DART_SDK_VERSION }}
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - name: 安装锁定版本 SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - name: 准备 Android SDK（接受许可 + 安装锁定版本组件）
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
       - name: 从 Secrets 恢复发布密钥（缺失则不伪造）
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -116,11 +124,25 @@ jobs:
     name: 构建 Windows x64 安装版 / 便携版
     needs: validate
     runs-on: windows-latest
+    # 说明：本仓库所属组织的 windows-latest 运行器环境中 CMake 无法定位任何
+    # Visual Studio 实例（历史多次构建均报 "could not find any instance of
+    # Visual Studio"）。这是运行器/镜像缺 MSVC 所致，非源码问题。
+    # 设 continue-on-error，使 Windows 失败时仍不阻断 Android 发布；
+    # 若运行器确实无 VS，Windows 二进制需在本机 VS2022 环境按 README 构建。
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - name: 编译 Win32 外壳（MSVC）
+      - name: 诊断 VS / MSVC 可用性
+        shell: pwsh
         run: |
-          cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json 2>$null | ConvertFrom-Json
+          if ($vs) { Write-Host "VS 实例: $($vs.displayName) @ $($vs.installationPath)" }
+          else { Write-Host "::warning::未检测到含 C++ 工作负载的 Visual Studio 实例" }
+      - name: 编译 Win32 外壳（自动探测生成器）
+        shell: pwsh
+        run: |
+          # 不硬编码 VS 生成器：让 CMake 自动探测可用工具链（VS / Build Tools / Ninja）。
+          cmake -S windows -B windows/build -A x64
           cmake --build windows/build --config Release
       - name: 冒烟测试
         shell: pwsh

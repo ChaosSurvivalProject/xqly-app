@@ -21,12 +21,17 @@
 
 - `xqly-app-v2.1.0.apk`（OTA 主资产，命名受更新链约束）
 - `星穹旅驿-2.1.0-android-universal-release.apk`（中文别名，仅附加下载项）
-- Windows 安装版 / 便携版（CI 在 `windows-latest` 生成）
+- Windows 安装版 / 便携版（CI 在 `windows-latest` 生成，见下方边界说明）
 
 ## 知道的边界（如实标注）
 
 - 游戏（方块合成）与离线档案（archive）当前仍由本机 WebView 承载原生页面，未做与资料库同级别的原生组件重写；属下一阶段计划项。
-- Windows 开发沙箱为 Linux，无 MSVC / Windows SDK / 代码签名证书，本机不产生 `xqly.exe`、MSIX 或便携 ZIP 二进制；源码完整可审计，二进制由 CI 产出。
+- **Windows 二进制 CI 状态**：构建本仓库所属组织的 `windows-latest` 运行器环境中，CMake 无法定位任何 Visual Studio 实例（历史多次构建均报 `could not find any instance of Visual Studio`），属运行器/镜像缺 MSVC 所致，非源码问题。因此 v2.1.0 的发布流水线中 Windows 任务被设为 `continue-on-error`——Android APK 仍会正常产出并打草稿 Release；若运行器确实无 VS，本版本 Release 不含 Windows 二进制。Windows 用户请在本机安装 **Visual Studio 2022「使用 C++ 的桌面开发」** 后，按 `windows/CMakeLists.txt` 顶部说明本地构建：
+  ```bash
+  cmake -S windows -B windows/build -A x64
+  cmake --build windows/build --config Release
+  ```
+  本机 Linux 开发沙箱无 MSVC / Windows SDK / 代码签名证书，不产生 `xqly.exe`、MSIX 或便携 ZIP 二进制；源码完整可审计。
 
 ## 升级说明
 
