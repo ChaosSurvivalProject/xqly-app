@@ -252,6 +252,8 @@ jobs:
             keytool -printcert -jarfile "/tmp/verify/xqly-app-v$V.apk" 2>/dev/null | grep -i SHA256 | head -2 || true
           fi
       - name: 输出发布摘要
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           V="${{ needs.validate.outputs.version }}"
           gh release view "v$V" --repo "$REPO" --json isDraft,tagName,assets \
