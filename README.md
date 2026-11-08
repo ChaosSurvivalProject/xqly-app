@@ -22,7 +22,7 @@
 - **修复**：新增零依赖 `core/OverlayController`，把浮层可见性收敛为唯一真源，每次变更下发「完整迁移」无条件重设所有浮层（先取消动画并复位），保证任意时刻最多一个浮层可见；所有跳转/关闭路径统一 `closeAllOverlays()`；浮层改不透明背景；新增「✦ 首页」一键逃生出口；启动页 8 秒兜底 + 加载超时 20s→12s，错误态不再被遮罩挡住。
 - **回归测试**：新增 8 个 JVM 用例，含 200 步随机操作序列验证「可见浮层数恒 ≤ 1」；`build.sh` 12 步门禁全过，**测试合计 323 用例**（Dart 152 + JVM 118 + Node 19 + C++ 34）。
 - **性能优化**：`GlowView` 渐变对象每帧零分配 + 重绘节流到 ~25fps；启动页隐藏时移除视图以停止无限动画；内置浮层延迟加载；隐藏 WebView 不再被逐个唤醒；桥接广播与主题注入只投递可见页面；资料库输入防抖 120ms、收藏切换只改内存集合。
-- **发布链收尾**：`gh release create --target` 修好 `untagged-*` 链接；Windows 资产改 ASCII 名；草稿幂等重建。
+- **发布链收尾**：`gh release create` 在 tag 已存在时不再传 `--target`；Windows 资产改 ASCII 名；草稿幂等重建。（`untagged-*` 是 GitHub 草稿 Release 的固有 URL，Publish 后自动变为 `releases/tag/v2.1.1`，非缺陷。）
 
 详见 [docs/RELEASE_NOTES_2.1.1.md](docs/RELEASE_NOTES_2.1.1.md)。
 

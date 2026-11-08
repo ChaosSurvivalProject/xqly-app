@@ -40,7 +40,8 @@ v2.1.0 把资料库改成纯原生 `LibraryView` 时引入了一个**致命 UI �
 
 ## 发布链收尾（上次未完成项）
 
-- 补上 `gh release create --target "$GITHUB_SHA"`：让 `target_commitish` 指向具体提交而非 `main` 分支，草稿 Release 得到干净的 `releases/tag/v2.1.1` 链接（旧版会退化成 `untagged-*` 占位 URL）。
+- `gh release create` 改为「tag 已存在时不传 `--target`」，避免与已有 tag 冲突。
+- **关于 `untagged-*` URL（如实更正）**：实测确认草稿 Release 的 `html_url` 形如 `/releases/tag/untagged-<uuid>` 是 GitHub 的**固有形态**——按 tag 调 `GET /releases/tags/v2.1.1` 对草稿返回 404 可证，与是否传 `--target` 无关。此前误判为流水线缺陷并两度调整，已在代码注释中更正；**点击 Publish 后 URL 自动变为 `/releases/tag/v2.1.1`**。
 - Windows 资产统一改用 ASCII 名 `xqly-app-v<版本>-windows-x64-*`，规避 GitHub 对中文资产名的归一/截断。
 - 草稿幂等：Release 已存在且为**草稿**时删后重建，仅正式发布才跳过；资产拷贝兼容 `upload-artifact@v4` 的 `dist/` 前缀。
 - 移除已废弃的 `android-actions/setup-android@v3`（硬装已删除的 `tools` 包）；MSIX 清单补 `rescap:runFullTrust`；CI 的 Windows 运行器（VS Enterprise 2026）实测可编译 `xqly.exe` 并产出 MSIX / 便携版。

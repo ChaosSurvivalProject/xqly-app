@@ -250,9 +250,11 @@ jobs:
               exit 0
             fi
           fi
-          # tag 已存在时绝不传 --target：GitHub 会把草稿当成「待定 tag」，
-          # html_url 退化成 /releases/tag/untagged-<uuid>（v2.1.0/v2.1.1 均实证）。
-          # 只有 tag 尚不存在的手工发布场景才用 --target 指定要打标签的提交。
+          # tag 已存在时不传 --target，避免与已有 tag 冲突；只有 tag 尚不存在的
+          # 手工发布场景才用 --target 指定要打标签的提交。
+          # 注：草稿 Release 的 html_url 形如 /releases/tag/untagged-<uuid> 是
+          # GitHub 的固有形态（按 tag 查草稿会返回 404），Publish 后自动变为
+          # /releases/tag/vX.Y.Z，不是本步骤的缺陷。
           if gh api "repos/$REPO/git/refs/tags/v$V" >/dev/null 2>&1; then
             gh release create "v$V" release/* --repo "$REPO" \
               --title "星穹旅驿 $V · Windows + Android" \
