@@ -250,10 +250,19 @@ jobs:
               exit 0
             fi
           fi
-          gh release create "v$V" release/* --repo "$REPO" \
-            --title "星穹旅驿 $V · Windows + Android" \
-            --notes-file "release/RELEASE_NOTES_$V.md" --draft \
-            --target "$GITHUB_SHA"
+          # tag 已存在时绝不传 --target：GitHub 会把草稿当成「待定 tag」，
+          # html_url 退化成 /releases/tag/untagged-<uuid>（v2.1.0/v2.1.1 均实证）。
+          # 只有 tag 尚不存在的手工发布场景才用 --target 指定要打标签的提交。
+          if gh api "repos/$REPO/git/refs/tags/v$V" >/dev/null 2>&1; then
+            gh release create "v$V" release/* --repo "$REPO" \
+              --title "星穹旅驿 $V · Windows + Android" \
+              --notes-file "release/RELEASE_NOTES_$V.md" --draft
+          else
+            gh release create "v$V" release/* --repo "$REPO" \
+              --title "星穹旅驿 $V · Windows + Android" \
+              --notes-file "release/RELEASE_NOTES_$V.md" --draft \
+              --target "$GITHUB_SHA"
+          fi
       - name: 像用户一样下载并验证哈希与签名
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
