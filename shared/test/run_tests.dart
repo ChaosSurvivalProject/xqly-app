@@ -215,10 +215,10 @@ void jsonTests(Harness h) {
 
 void identityTests(Harness h) {
   h.group('双平台身份常量（与 Android Java 侧逐项一致）');
-  h.t('业务版本 2.1.0 / code 7 / 四段版本', () {
-    eq(AppIdentity.versionName, '2.1.0');
-    eq(AppIdentity.versionCode, 7);
-    eq(AppIdentity.windowsVersion, '2.1.0.0');
+  h.t('业务版本 2.1.1 / code 8 / 四段版本', () {
+    eq(AppIdentity.versionName, '2.1.1');
+    eq(AppIdentity.versionCode, 8);
+    eq(AppIdentity.windowsVersion, '2.1.1.0');
   });
   h.t('发布者与仓库钉扎', () {
     eq(AppIdentity.repo, 'ChaosSurvivalProject/xqly-app');

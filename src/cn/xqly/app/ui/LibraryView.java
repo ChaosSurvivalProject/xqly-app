@@ -67,6 +67,8 @@ public class LibraryView extends FrameLayout {
 
     private void build() {
         DesignTokens.Palette pal = DesignTokens.palette(DesignTokens.Theme.DARK, DesignTokens.Mode.GLASS);
+        // 不透明背景：否则资料库浮层是透明的，下层主页内容会全部透出、层层叠叠。
+        setBackgroundColor(pal.get(DesignTokens.ColorKey.BACKGROUND));
         LinearLayout col = new LinearLayout(ctx);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(dp(16), dp(16), dp(16), dp(16));
@@ -115,7 +117,14 @@ public class LibraryView extends FrameLayout {
         addView(state, lp(-1, -1));
     }
 
-    private void onQuery(String q) { runSearch(q); }
+    /** 输入防抖：逐字输入时合并为一次检索，避免每敲一个键就重建整张结果列表。 */
+    private Runnable pendingSearch;
+    private void onQuery(String q) {
+        if (pendingSearch != null) removeCallbacks(pendingSearch);
+        final String qq = q;
+        pendingSearch = () -> runSearch(qq);
+        postDelayed(pendingSearch, 120L);
+    }
 
     private void markTag(String active) {
         for (int i = 0; i < tagRow.getChildCount(); i++) {
@@ -141,8 +150,9 @@ public class LibraryView extends FrameLayout {
     }
 
     private void runSearch(String q) {
+        final String qq = (q == null) ? "" : q;   // 旧实现在 q==null 时会于 q.trim() 崩
         List<SearchIndex.Hit> hits;
-        if (q == null || q.trim().isEmpty()) {
+        if (qq.trim().isEmpty()) {
             hits = new ArrayList<SearchIndex.Hit>();
             for (SearchIndex.Doc d : index.docs()) {
                 if (favOnly && !favSet.contains(d.id)) continue;
@@ -150,7 +160,7 @@ public class LibraryView extends FrameLayout {
                 hits.add(new SearchIndex.Hit(d.id, d.title, "", favSet.contains(d.id) ? 1 : 0));
             }
         } else {
-            List<SearchIndex.Hit> raw = SearchIndex.search(index, q, curTag, false, 50);
+            List<SearchIndex.Hit> raw = SearchIndex.search(index, qq, curTag, false, 50);
             hits = new ArrayList<SearchIndex.Hit>();
             for (SearchIndex.Hit h : raw) {
                 if (favOnly && !favSet.contains(h.id)) continue;
@@ -159,7 +169,7 @@ public class LibraryView extends FrameLayout {
         }
         list.removeAllViews();
         if (hits.isEmpty()) {
-            boolean blank = q.trim().isEmpty() && !favOnly && curTag.isEmpty();
+            boolean blank = qq.trim().isEmpty() && !favOnly && curTag.isEmpty();
             state.show(AppState.Page.LIBRARY, blank ? AppState.Phase.EMPTY : AppState.Phase.NO_RESULT);
             return;
         }
@@ -218,9 +228,10 @@ public class LibraryView extends FrameLayout {
 
     private void toggleFavorite(String id) {
         if (id == null || id.isEmpty()) return;
-        UserData.toggleFavorite(prefs, id);
-        favSet.clear();
-        favSet.addAll(UserData.favorites(prefs));
+        // 只改内存集合：旧实现 clear + 重新读盘全量 favorites，每次收藏都多一次
+        // 偏好读取与集合重建。toggleFavorite 的返回值即为切换后的状态。
+        boolean added = UserData.toggleFavorite(prefs, id);
+        if (added) favSet.add(id); else favSet.remove(id);
         runSearch(searchBar.getQuery());
     }
 

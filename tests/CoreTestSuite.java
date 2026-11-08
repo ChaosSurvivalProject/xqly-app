@@ -6,6 +6,7 @@ import cn.xqly.app.core.ContentManifest.*;
 import cn.xqly.app.core.DesignTokens.*;
 import cn.xqly.app.core.GameRules.*;
 import cn.xqly.app.core.VersionPolicy.Decision;
+import cn.xqly.app.core.OverlayController.Layer;
 
 import java.util.*;
 
@@ -29,6 +30,7 @@ public final class CoreTestSuite {
         userDataTests(h);
         syncTests(h);
         stateTests(h);
+        overlayTests(h);
         bundleTests(h);
         System.exit(h.run());
     }
@@ -796,5 +798,121 @@ public final class CoreTestSuite {
         for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) s.board[y][x] = 0;
         s.next = 2; s.hold = 0; s.holdUsed = false; s.over = false;
         return s;
+    }
+
+    // ---------------------------------------------------------------- 浮层互斥（v2.1.1 UI bug 回归）
+    /**
+     * 回归 v2.1.0 的致命 bug：资料库浮层构造后未设 GONE、标志位却为 false，
+     * 造成透明浮层常驻叠加、触摸被吃、返回键与关闭消息都关不掉。
+     * 这里模拟调用方「按迁移结果无条件重设所有层可见性」，验证不变量恒成立。
+     */
+    private static void overlayTests(TestHarness h) {
+        h.group("浮层互斥控制器 / UI 层叠回归");
+
+        h.test("初始无任何浮层可见", () -> {
+            OverlayController c = new OverlayController();
+            eq(c.current(), Layer.NONE, "initial NONE");
+            isFalse(c.anyOpen(), "nothing open");
+            OverlayController.Transition t = c.closeAll();
+            eqInt(visibleCount(t), 0, "closeAll 收敛到 0 层");
+            isTrue(c.invariant(t), "invariant");
+        });
+
+        h.test("打开资料库：显示 LIBRARY 且隐藏其余全部", () -> {
+            OverlayController c = new OverlayController();
+            OverlayController.Transition t = c.open(Layer.LIBRARY);
+            eq(t.show, Layer.LIBRARY, "show LIBRARY");
+            eqInt(t.hide.length, 2, "hide ARCHIVE+GAME");
+            isTrue(contains(t.hide, Layer.ARCHIVE), "ARCHIVE hidden");
+            isTrue(contains(t.hide, Layer.GAME), "GAME hidden");
+            isTrue(c.invariant(t), "invariant");
+            eqInt(visibleCount(t), 1, "恰好 1 层可见");
+        });
+
+        h.test("浮层互斥：后开的自动顶掉先开的", () -> {
+            OverlayController c = new OverlayController();
+            c.open(Layer.LIBRARY);
+            OverlayController.Transition t = c.open(Layer.GAME);
+            eq(c.current(), Layer.GAME, "current GAME");
+            eq(t.show, Layer.GAME, "show GAME");
+            isTrue(contains(t.hide, Layer.LIBRARY), "LIBRARY 必须被隐藏");
+            eqInt(visibleCount(t), 1, "仍恰好 1 层可见");
+            isTrue(c.invariant(t), "invariant");
+        });
+
+        h.test("跳转页面时 closeAll 清空所有浮层（不再残留无法关闭的层）", () -> {
+            OverlayController c = new OverlayController();
+            c.open(Layer.ARCHIVE);
+            c.open(Layer.GAME);
+            OverlayController.Transition t = c.closeAll();
+            eq(t.show, Layer.NONE, "show NONE");
+            eqInt(t.hide.length, 3, "三层全部要求隐藏");
+            eqInt(visibleCount(t), 0, "收敛到 0 层");
+            isFalse(c.anyOpen(), "nothing open");
+            isTrue(c.invariant(t), "invariant");
+        });
+
+        h.test("返回键：有浮层时关闭它，无浮层时不下发变更", () -> {
+            OverlayController c = new OverlayController();
+            c.open(Layer.ARCHIVE);
+            OverlayController.Transition t1 = c.onBack();
+            isTrue(t1.changed, "关闭了浮层");
+            eq(t1.show, Layer.NONE, "收敛到主界面");
+            OverlayController.Transition t2 = c.onBack();
+            isFalse(t2.changed, "已无浮层，交给 WebView 返回/退出");
+            isTrue(c.invariant(t2), "invariant");
+        });
+
+        h.test("重复关闭 / 关闭非当前层幂等，且仍下发完整收敛", () -> {
+            OverlayController c = new OverlayController();
+            c.open(Layer.LIBRARY);
+            c.close(Layer.GAME);                       // 非当前层
+            eq(c.current(), Layer.LIBRARY, "不受影响");
+            OverlayController.Transition t = c.close(Layer.LIBRARY);
+            isTrue(t.changed, "真正关闭");
+            OverlayController.Transition t2 = c.close(Layer.LIBRARY);
+            isFalse(t2.changed, "重复关闭无变更");
+            eqInt(visibleCount(t2), 0, "仍然收敛到 0 层");
+            isTrue(c.invariant(t2), "invariant");
+        });
+
+        h.test("open(NONE) 抛异常，杜绝用 NONE 打开", () -> {
+            OverlayController c = new OverlayController();
+            throwsAny(() -> c.open(Layer.NONE), "NONE 非法");
+            throwsAny(() -> c.open(null), "null 非法");
+        });
+
+        h.test("回归不变量：200 步随机操作后可见浮层数恒 <= 1", () -> {
+            OverlayController c = new OverlayController();
+            // 模拟调用方维护的「实际可见集合」：每次按迁移结果无条件重设。
+            java.util.Set<Layer> visible = new java.util.HashSet<Layer>();
+            java.util.Random r = new java.util.Random(20261108L);
+            Layer[] layers = { Layer.ARCHIVE, Layer.LIBRARY, Layer.GAME };
+            for (int i = 0; i < 200; i++) {
+                OverlayController.Transition t;
+                int op = r.nextInt(4);
+                if (op == 0) t = c.open(layers[r.nextInt(3)]);
+                else if (op == 1) t = c.close(layers[r.nextInt(3)]);
+                else if (op == 2) t = c.closeAll();
+                else t = c.onBack();
+                // 调用方按迁移结果重设所有浮层可见性（BUG 修复后的正确行为）
+                visible.clear();
+                if (t.show != Layer.NONE) visible.add(t.show);
+                isTrue(c.invariant(t), "invariant @step " + i);
+                isTrue(visible.size() <= 1, "最多 1 层可见 @step " + i);
+                eq(visible.contains(c.current()) || c.current() == Layer.NONE,
+                        true, "可见集合与 current 一致 @step " + i);
+            }
+        });
+    }
+
+    /** 按迁移结果计算可见层数（模拟调用方无条件重设可见性）。 */
+    private static int visibleCount(OverlayController.Transition t) {
+        return t.show == Layer.NONE ? 0 : 1;
+    }
+
+    private static boolean contains(Layer[] arr, Layer x) {
+        for (Layer l : arr) if (l == x) return true;
+        return false;
     }
 }

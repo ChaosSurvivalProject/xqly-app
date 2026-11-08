@@ -15,8 +15,8 @@ BT="$SDK/build-tools/$BT_VER"
 JAR="$SDK/platforms/$PLATFORM/android.jar"
 
 # 版本唯一真源：Manifest 与 MainActivity 必须与此一致，防止漂移
-V_CODE=7
-V_NAME=2.1.0
+V_CODE=8
+V_NAME=2.1.1
 
 OUT="${OUT:-$ROOT/dist/星穹旅驿.apk}"
 KS_PASS="${KS_PASS:-xqly2026}"

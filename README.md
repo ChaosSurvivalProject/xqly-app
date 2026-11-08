@@ -4,13 +4,27 @@
 
 **原生 Android**（Java + 系统 WebView）与 **原生 Windows**（Win32 窗口程序）双客户端，共用一套纯 Dart 业务核心。在线直连与离线镜像两种模式均可完整使用；内置「全站内容档案」与本地全文检索，离线时还有小游戏「方块合成」；支持平板 / 横屏 / 折叠屏自适应与可信自动更新。
 
-当前版本 **v2.1.0**（Android `versionCode=7` / Windows `2.1.0.0`）。
+当前版本 **v2.1.1**（Android `versionCode=8` / Windows `2.1.1.0`）。
 
 > 📦 直接到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载已正式签名的 Android APK，安装即用。
 
-> ⚠ **关于 Windows 产物**：本仓库开发沙箱是 Linux，没有 MSVC / Windows SDK / 代码签名证书，因此**本机不产生 `xqly.exe`、MSIX 或便携 ZIP 二进制**。仓库提供完整可审计的 Win32 源码与已真实编译测试的平台无关核心，安装版与便携版由 [`.github/workflows/release.yml`](.github/workflows/release.yml) 在 `windows-latest` 上生成。详见 [windows/README.md](windows/README.md)。
+> ✅ **关于 Windows 产物**：安装版（MSIX）与便携版（ZIP）由 [`.github/workflows/release.yml`](.github/workflows/release.yml) 在 `windows-latest`（Visual Studio Enterprise 2026）真实编译产出，随每个草稿 Release 一起发布；目前为**测试签名**（未配置组织代码签名证书），不伪装正式版。本仓库开发沙箱是 Linux，本机不产生 Windows 二进制，但 Win32 源码完整可审计、平台无关核心已编译测试。详见 [windows/README.md](windows/README.md)。
 
 ![界面预览](docs/界面预览.png)
+
+---
+
+## v2.1.1 更新重点（紧急修复 · UI 层叠 / 无法关闭 · 性能优化）
+
+修复 v2.1.0 资料库原生化引入的**致命 UI 回归**：界面层层叠叠、卡住动不了、关闭不了、跳转后无法关闭。
+
+- **根因**：`buildLibraryOverlay()` 漏了 `setVisibility(GONE)`，资料库浮层从启动就透明叠加在主 WebView 上；`libraryOpen` 标志却仍为 `false`，返回键与桥接关闭消息都关不掉它；上层 `FrameLayout` 吃掉触摸，下层页面点不到。
+- **修复**：新增零依赖 `core/OverlayController`，把浮层可见性收敛为唯一真源，每次变更下发「完整迁移」无条件重设所有浮层（先取消动画并复位），保证任意时刻最多一个浮层可见；所有跳转/关闭路径统一 `closeAllOverlays()`；浮层改不透明背景；新增「✦ 首页」一键逃生出口；启动页 8 秒兜底 + 加载超时 20s→12s，错误态不再被遮罩挡住。
+- **回归测试**：新增 8 个 JVM 用例，含 200 步随机操作序列验证「可见浮层数恒 ≤ 1」；`build.sh` 12 步门禁全过，**测试合计 323 用例**（Dart 152 + JVM 118 + Node 19 + C++ 34）。
+- **性能优化**：`GlowView` 渐变对象每帧零分配 + 重绘节流到 ~25fps；启动页隐藏时移除视图以停止无限动画；内置浮层延迟加载；隐藏 WebView 不再被逐个唤醒；桥接广播与主题注入只投递可见页面；资料库输入防抖 120ms、收藏切换只改内存集合。
+- **发布链收尾**：`gh release create --target` 修好 `untagged-*` 链接；Windows 资产改 ASCII 名；草稿幂等重建。
+
+详见 [docs/RELEASE_NOTES_2.1.1.md](docs/RELEASE_NOTES_2.1.1.md)。
 
 ---
 
@@ -76,10 +90,10 @@
 | 内置内容清单 | **228 个文件 / 10,531,971 bytes（10.04 MB）** |
 | 本地检索索引 | 13 条真实文档 |
 | `assets/` 实际文件 | 229（含 `MANIFEST.json` 自身，清单不纳入自己） |
-| Java 源码 | 26 个文件 / 5,000+ 行 |
+| Java 源码 | 32 个文件 / 5,909 行（含 17 个零 Android 依赖的纯逻辑类） |
 | Dart 源码 | 19 个 `.dart`（16 个共享模块 + 入口 + 生成器 + 测试） |
 | C++ 源码 | 11 个 `.cpp` / `.h` |
-| 自动化测试 | **315 个用例**（Dart 152 + JVM 110 + Node 19 + C++ 34） |
+| 自动化测试 | **323 个用例**（Dart 152 + JVM 118 + Node 19 + C++ 34） |
 | Android APK | 6,665,650 bytes，正式签名 |
 
 ---
@@ -160,7 +174,7 @@ cmake --build windows/build --config Release
 
 ### 安装
 
-**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.1.0.apk`，点击安装；应用内也支持自动更新。
+**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.1.1.apk`，点击安装；应用内也支持自动更新。
 
 **方式二**：本地编译后 `adb install -r dist/星穹旅驿.apk`。
 
@@ -168,7 +182,7 @@ cmake --build windows/build --config Release
 
 ```bash
 sha256sum -c SHA256SUMS.txt
-apksigner verify --print-certs xqly-app-v2.1.0.apk | grep SHA-256
+apksigner verify --print-certs xqly-app-v2.1.1.apk | grep SHA-256
 # 期望: e1e8edc56e9700a27ab2cd4ba5f45fa0ba1bd9a88e4a261de7ef3684b3c21c05
 ```
 
@@ -190,10 +204,11 @@ python3 tools/gen_manifest.py      # 重建内容清单（内容未变化时保�
 ```bash
 export GH_TOKEN=<你的 Personal Access Token>
 bash scripts/publish.sh            # 推送源码（5 次重试 + 远端 HEAD 校验）
-python3 tools/gen_release_assets.py release/ 2.1.0   # 从真实产物生成摘要与 SBOM
-gh release create v2.1.0 release/* --repo ChaosSurvivalProject/xqly-app \
-  --title "星穹旅驿 2.1.0 · Windows + Android" \
-  --notes-file docs/RELEASE_NOTES_2.1.0.md --draft
+python3 tools/gen_release_assets.py release/ 2.1.1   # 从真实产物生成摘要与 SBOM
+gh release create v2.1.1 release/* --repo ChaosSurvivalProject/xqly-app \
+  --title "星穹旅驿 2.1.1 · Windows + Android" \
+  --notes-file docs/RELEASE_NOTES_2.1.1.md --draft \
+  --target "$(git rev-parse HEAD)"
 ```
 
 令牌只在运行时从环境变量读取，不写入仓库或 git 配置；git 认证头只对 `github.com` 主机生效。CI 中打 tag 会触发 `release.yml` 自动创建**草稿**，并下载资产做 `sha256sum -c` 校验；若 Release 已由本机正式签名发布，流水线会跳过创建以免覆盖。
@@ -221,12 +236,12 @@ OTA 主资产名硬约束为 `xqly-app-v<version>.apk`，中文名只是附加�
 ## 目录结构
 
 ```
-├── AndroidManifest.xml            # versionCode=7 / versionName=2.1.0
+├── AndroidManifest.xml            # versionCode=8 / versionName=2.1.1
 ├── build.sh                       # 零 Gradle 可重复构建（12 步门禁）
-├── src/cn/xqly/app/               # Android 原生 Java（26 文件）
+├── src/cn/xqly/app/               # Android 原生 Java（27 文件，含 core/OverlayController）
 │   ├── MainActivity.java / WebBridge.java / Updater.java / UpdateCenter.java
 │   ├── GlassDrawable.java / GlassDock.java / XFileProvider.java
-│   └── core/                      # 16 个零 Android 依赖的纯逻辑类（含 SyncEngine）
+│   └── core/                      # 17 个零 Android 依赖的纯逻辑类（含 SyncEngine / OverlayController）
 ├── shared/                        # 纯 Dart 双平台共享核心（唯一业务真源）
 │   ├── lib/src/                   # 16 个模块，零第三方依赖
 │   ├── tool/gen_tokens.dart       # 设计令牌生成器（三份产物 + --check）

@@ -53,7 +53,10 @@ import cn.xqly.app.core.ContentManifest;
 import cn.xqly.app.core.DesignTokens;
 import cn.xqly.app.core.FeatureFlags;
 import cn.xqly.app.core.MiniJson;
+import cn.xqly.app.core.OverlayController;
 import cn.xqly.app.core.SearchIndex;
+
+import static cn.xqly.app.core.OverlayController.Layer;
 import cn.xqly.app.core.UrlPolicy;
 import cn.xqly.app.core.UserData;
 import cn.xqly.app.core.UserPrefs;
@@ -67,11 +70,11 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
 
-    public static final String VERSION_NAME = "2.1.0";
-    public static final int VERSION_CODE = 7;
+    public static final String VERSION_NAME = "2.1.1";
+    public static final int VERSION_CODE = 8;
 
     private FrameLayout root;
-    private WebView web, archiveWeb, gameWeb, libraryWeb;
+    private WebView web, archiveWeb, gameWeb;
     private GlassDock dock;
     private GlassDrawable pillGlass;
     private View sidePill;
@@ -87,23 +90,29 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private float uiScale = 1f;
     private boolean isTablet = false, isLandscape = false, foldUnfolded = false;
     private boolean offline = false;
-    private boolean archiveOpen = false, gameOpen = false, libraryOpen = false;
+    /** 浮层可见性的唯一真源；保证任意时刻最多一个浮层可见（修复 v2.1.0 层叠/关不掉 bug）。 */
+    private final OverlayController overlays = new OverlayController();
+    /** 内置浮层页面延迟加载：只在首次真正打开时才 loadUrl，避免启动时 3 个 WebView 并发渲染。 */
+    private final Map<Layer, String> pendingPages = new HashMap<>();
     private Updater updater;
     private String currentPath = "/";
     private String pageName = "首页";
     private int dockSide = 0;
     private UserPrefs userPrefs, cachePrefs;
-    private WebView activeWeb;
     private long lastBack = 0L;
     private List<String> apiSnapshots = new ArrayList<>();
     private DesignTokens.Theme theme = DesignTokens.Theme.DARK;
     private DesignTokens.Mode displayMode = DesignTokens.Mode.GLASS;
     private boolean pageFinished = false;
+    private boolean splashHidden = false;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Runnable loadTimeout;
+    private Runnable splashFallback;
     private SearchIndex.Index searchIndex;
     private int bridgeRejected = 0;
-    private static final int LOAD_TIMEOUT_MS = 20000;
+    /** 从 20s 收紧到 12s：异常时更快给出可操作的错误态，避免长时间「卡住动不了」。 */
+    private static final int LOAD_TIMEOUT_MS = 12000;
+    private static final int SPLASH_FALLBACK_MS = 8000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -159,18 +168,21 @@ public class MainActivity extends Activity implements WebBridge.Host {
         stateOverlay.setVisibility(View.GONE);
         root.addView(stateOverlay, new FrameLayout.LayoutParams(-1, -1));
 
-        archiveOverlay = buildLocalOverlay("archive.html");
+        archiveOverlay = buildLocalOverlay("archive.html", Layer.ARCHIVE);
         root.addView(archiveOverlay, new FrameLayout.LayoutParams(-1, -1));
-        // library 用原生「星穹玻璃」界面（LibraryView），不再走 WebView 壳。
-        // 仍创建 libraryWeb 并保非 null，以维持生命周期遍历（onResume/onPause/destroy）稳定。
-        libraryWeb = new WebView(this);
-        configureWeb(libraryWeb, false);
+        // library 用原生「星穹玻璃」界面（LibraryView），不再创建 WebView 壳。
+        // v2.1.1 删除了那个从未加载任何页面的空白 WebView，少一个重量级渲染实例。
         libraryOverlay = buildLibraryOverlay();
         root.addView(libraryOverlay, new FrameLayout.LayoutParams(-1, -1));
-        gameOverlay = buildLocalOverlay("game.html");
+        gameOverlay = buildLocalOverlay("game.html", Layer.GAME);
         root.addView(gameOverlay, new FrameLayout.LayoutParams(-1, -1));
         splash = buildSplash();
         root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+        // 兜底：无论页面是否 onPageFinished（离线镜像加载失败 / 超时 / 证书错误），
+        // 启动页都必须在 8 秒内移除。否则半透明启动页 + LOADING 遮罩会永久盖住界面，
+        // 用户点什么都没反应，也无法触达「重试」按钮。
+        splashFallback = this::hideSplash;
+        ui.postDelayed(splashFallback, SPLASH_FALLBACK_MS);
 
         setContentView(root);
         applyThemeAndMode();
@@ -218,7 +230,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         applyWebTheme();
     }
 
-    /** 把当前深/浅主题与三种显示模式写到每个内置页面的 <html> 上，共享同一套 DOM。 */
+    /** 把当前深/浅主题与三种显示模式写到可见页面上，共享同一套 DOM。 */
     private void applyWebTheme() {
         final String t = theme == DesignTokens.Theme.LIGHT ? "light" : "dark";
         final String m = displayMode == DesignTokens.Mode.ECO ? "eco"
@@ -226,9 +238,17 @@ public class MainActivity extends Activity implements WebBridge.Host {
         final String js = "(function(){var d=document.documentElement;if(!d)return;"
                 + "d.setAttribute('data-theme','" + t + "');"
                 + "d.setAttribute('data-mode','" + m + "');})();";
-        for (WebView w : new WebView[]{web, archiveWeb, libraryWeb, gameWeb}) {
-            if (w != null) try { w.evaluateJavascript(js, null); } catch (Exception ignored) { }
-        }
+        evalOnVisible(js);
+    }
+
+    /**
+     * 只向「主 WebView + 当前可见浮层的 WebView」投递 JS。
+     * 旧实现遍历全部 4 个 WebView（含 3 个隐藏/空白的），每次都做无用的 JS 求值。
+     */
+    private void evalOnVisible(String js) {
+        if (web != null) try { web.evaluateJavascript(js, null); } catch (Exception ignored) { }
+        WebView w = webFor(overlays.current());
+        if (w != null) try { w.evaluateJavascript(js, null); } catch (Exception ignored) { }
     }
 
     /** 三模式共享同一套导航/业务状态，只切换材质与对比度，不做三套孤立页面。 */
@@ -345,8 +365,9 @@ public class MainActivity extends Activity implements WebBridge.Host {
         sLp.bottomMargin = sdp(4);
         pill.addView(statusDot, sLp);
 
-        View b0 = pillButton("✦", "首页", DAWN, v ->
-                toast("星穹旅驿 · " + pageName + " · " + (offline ? "离线镜像" : "在线直连")));
+        // 「首页」同时是逃生出口：一键关掉所有浮层/全屏/启动页并重载首页，
+        // 解决用户反馈的「卡住动不了、关闭不了、跳转后关不掉」。
+        View b0 = pillButton("✦", "首页", DAWN, v -> resetToHome());
         b0.setOnLongClickListener(v -> { openSettings(); return true; });
         pillPage = (TextView) ((LinearLayout) b0).getChildAt(1);
         pill.addView(b0);
@@ -450,7 +471,6 @@ public class MainActivity extends Activity implements WebBridge.Host {
         // 该实例只认可自己所属页面的 URL，杜绝跨 WebView 的来源冒用。
         final WebBridge bridge = new WebBridge(this);
         w.addJavascriptInterface(bridge, AppIdentity.BRIDGE_NAME);
-        activeWeb = w;
 
         w.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -538,6 +558,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
     private void onMainFrameError() {
         cancelLoadTimeout();
+        hideSplash();          // 错误态必须可见可点，不能被启动页挡住
         if (!offline) {
             offline = true;                     // 在线失败 → 自动降级到内置镜像（保留原能力）
             updateModeUi();
@@ -551,7 +572,11 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
     private void scheduleLoadTimeout() {
         cancelLoadTimeout();
-        loadTimeout = () -> { if (!pageFinished) { showState(AppState.Phase.ERROR_RETRY); toast("加载超时，可重试"); } };
+        loadTimeout = () -> { if (!pageFinished) {
+            hideSplash();      // 超时后启动页不得继续遮挡「重试」入口
+            showState(AppState.Phase.ERROR_RETRY);
+            toast("加载超时，可重试");
+        } };
         ui.postDelayed(loadTimeout, LOAD_TIMEOUT_MS);
     }
     private void cancelLoadTimeout() { if (loadTimeout != null) { ui.removeCallbacks(loadTimeout); loadTimeout = null; } }
@@ -697,16 +722,16 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
     @Override public void onOpenPage(String path) {
         if (!path.startsWith("/") || !UrlPolicy.sitePathAllowed(path)) { toast("已阻止越权跳转"); return; }
-        if (archiveOpen) closeArchive();
-        if (libraryOpen) closeLibrary();
+        // 跳转前无条件收敛所有浮层：旧实现只关 archive/library 且不关 game，
+        // 会出现「跳转以后还有一层关不掉」。
+        closeAllOverlays();
         currentPath = path; syncTitle();
         web.loadUrl(BASE + path);
     }
 
     @Override public void onCloseOverlay() {
-        if (gameOpen) closeGame();
-        else if (archiveOpen) closeArchive();
-        else if (libraryOpen) closeLibrary();
+        // 旧实现是 if/else-if 链，一次只关一个；若有多层残留就永远关不干净。
+        closeAllOverlays();
     }
 
     @Override public void onScroll(int y) {
@@ -788,10 +813,8 @@ public class MainActivity extends Activity implements WebBridge.Host {
     }
 
     @Override public void reply(String json) {
-        String call = "window.XQ&&XQ.onMessage(" + json + ");";
-        for (WebView w : new WebView[]{gameWeb, libraryWeb, archiveWeb, web}) {
-            if (w != null) try { w.evaluateJavascript(call, null); } catch (Exception ignored) { }
-        }
+        // 只投递可见页面：隐藏浮层的 WebView 不该为每次桥接消息执行 JS。
+        evalOnVisible("window.XQ&&XQ.onMessage(" + json + ");");
     }
 
     @Override public void onRejected(String reason) { bridgeRejected++; }
@@ -859,51 +882,96 @@ public class MainActivity extends Activity implements WebBridge.Host {
     }
 
     private void onDockClick(int index, String path) {
-        if (gameOpen) closeGame();
+        closeAllOverlays();               // 任意导航先收敛到主界面，杜绝残留浮层
         dock.setActive(index);
         if ("__ARCHIVE__".equals(path)) { openArchive(); return; }
-        if (archiveOpen) closeArchive();
-        if (libraryOpen) closeLibrary();
         currentPath = path; syncTitle();
         navigate(BASE + path);
     }
 
-    /** 本地 WebView 浮层：archive / library / game 共用同一套加固配置。 */
-    private FrameLayout buildLocalOverlay(String page) {
+    /** 本地 WebView 浮层：archive / game 共用同一套加固配置；页面延迟到首次打开才加载。 */
+    private FrameLayout buildLocalOverlay(String page, final Layer layer) {
         FrameLayout overlay = new FrameLayout(this);
         overlay.setVisibility(View.GONE);
-        overlay.setBackgroundColor(palette().get(DesignTokens.ColorKey.OVERLAY));
+        // 不透明背景：旧实现用半透明 OVERLAY（alpha 0xD8），多个浮层叠加时下层
+        // 页面内容全部透出，正是截图里「层层叠叠」的成因之一。
+        overlay.setBackgroundColor(palette().get(DesignTokens.ColorKey.BACKGROUND));
         overlay.setClickable(true);
         WebView w = new WebView(this);
-        w.setBackgroundColor(Color.TRANSPARENT);
+        w.setBackgroundColor(palette().get(DesignTokens.ColorKey.BACKGROUND));
         configureWeb(w, true);
-        w.loadUrl("file:///android_asset/" + page);
         overlay.addView(w, new FrameLayout.LayoutParams(-1, -1));
-        if ("archive.html".equals(page)) archiveWeb = w;
-        else if ("library.html".equals(page)) libraryWeb = w;
-        else if ("game.html".equals(page)) gameWeb = w;
+        if (layer == Layer.ARCHIVE) archiveWeb = w;
+        else if (layer == Layer.GAME) gameWeb = w;
+        pendingPages.put(layer, page);    // 首次打开时才 loadUrl（启动性能）
         return overlay;
     }
 
-    private void showOverlay(FrameLayout o) {
-        o.setAlpha(0f); o.setVisibility(View.VISIBLE);
-        o.animate().alpha(1f).setDuration(240).start();
-        o.setScaleX(0.97f); o.setScaleY(0.97f);
-        o.animate().scaleX(1f).scaleY(1f).setDuration(300).start();
-    }
-    private void hideOverlay(FrameLayout o) {
-        o.animate().alpha(0f).setDuration(200).withEndAction(() -> o.setVisibility(View.GONE)).start();
+    private WebView webFor(Layer l) {
+        if (l == Layer.ARCHIVE) return archiveWeb;
+        if (l == Layer.GAME) return gameWeb;
+        return null;                      // LIBRARY 是原生 View；NONE 无浮层
     }
 
-    private void openArchive() { archiveOpen = true; activeWeb = archiveWeb; showOverlay(archiveOverlay); }
-    private void closeArchive() { if (!archiveOpen) return; archiveOpen = false; activeWeb = web; hideOverlay(archiveOverlay); }
-    private void openLibrary() { libraryOpen = true; activeWeb = web; showOverlay(libraryOverlay); }
-    private void closeLibrary() { if (!libraryOpen) return; libraryOpen = false; activeWeb = web; hideOverlay(libraryOverlay); }
+    private FrameLayout overlayFor(Layer l) {
+        if (l == Layer.ARCHIVE) return archiveOverlay;
+        if (l == Layer.LIBRARY) return libraryOverlay;
+        if (l == Layer.GAME) return gameOverlay;
+        return null;
+    }
+
+    /** 首次显示某浮层时才真正加载其本地页面，避免启动时 3 个 WebView 并发渲染。 */
+    private void ensureLoaded(Layer l) {
+        String page = pendingPages.remove(l);
+        if (page == null) return;
+        WebView w = webFor(l);
+        if (w != null) w.loadUrl("file:///android_asset/" + page);
+    }
+
+    /**
+     * 按控制器给出的「完整迁移」无条件重设所有浮层可见性。
+     * 先 cancel 动画并复位 alpha/scale：旧实现的 hideOverlay 用 withEndAction 设 GONE，
+     * 一旦被紧接着的 showOverlay 动画取消，浮层就永久停在 VISIBLE（半透明残留层）。
+     */
+    private void applyOverlayTransition(OverlayController.Transition t) {
+        if (t == null) return;
+        for (Layer l : t.hide) {
+            FrameLayout o = overlayFor(l);
+            if (o == null) continue;
+            o.animate().cancel();
+            o.setAlpha(1f); o.setScaleX(1f); o.setScaleY(1f);
+            o.setVisibility(View.GONE);
+        }
+        if (t.show == Layer.NONE) return;
+        FrameLayout o = overlayFor(t.show);
+        if (o == null) return;
+        ensureLoaded(t.show);
+        hideSplash();
+        o.animate().cancel();
+        o.setAlpha(0f); o.setScaleX(0.97f); o.setScaleY(0.97f);
+        o.setVisibility(View.VISIBLE);
+        o.bringToFront();
+        o.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(240).start();
+    }
+
+    private void openArchive() { applyOverlayTransition(overlays.open(Layer.ARCHIVE)); }
+    private void openLibrary() { applyOverlayTransition(overlays.open(Layer.LIBRARY)); }
+    private void openGame() {
+        applyOverlayTransition(overlays.open(Layer.GAME));
+        toast(offline ? "离线小游戏 · 方块合成（无需联网）" : "方块合成 · 本地运行，不消耗流量");
+    }
+    private void closeAllOverlays() { applyOverlayTransition(overlays.closeAll()); }
 
     /** 原生资料库浮层：直接承载 LibraryView，复用 core 的搜索/收藏，不加载 WebView。 */
     private FrameLayout buildLibraryOverlay() {
         FrameLayout f = new FrameLayout(this);
         f.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
+        // ★ 核心修复：旧实现漏了 setVisibility(GONE)，导致资料库从启动就常驻叠加在
+        //   主 WebView 上；同时 libraryOpen 仍为 false，返回键与关闭消息都关不掉它。
+        f.setVisibility(View.GONE);
+        // 不透明背景，彻底阻断下层页面透视叠加。
+        f.setBackgroundColor(palette().get(DesignTokens.ColorKey.BACKGROUND));
+        f.setClickable(true);
         if (searchIndex == null) loadSearchIndex();
         if (searchIndex != null) {
             LibraryView lib = new LibraryView(this, searchIndex, userPrefs,
@@ -915,20 +983,10 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
     /** 资料库点击「打开」：关闭所有浮层并导航到在线内容（离线则回落无网态）。 */
     private void openLibraryDoc(String id, String title) {
-        closeLibrary();
-        closeArchive();
-        closeGame();
+        closeAllOverlays();
         String path = (id == null || id.isEmpty()) ? "/" : id;
         web.loadUrl(BASE + path);
-        activeWeb = web;
     }
-    private void openGame() {
-        if (archiveOpen) closeArchive();
-        if (libraryOpen) closeLibrary();
-        gameOpen = true; activeWeb = gameWeb; showOverlay(gameOverlay);
-        toast(offline ? "离线小游戏 · 方块合成（无需联网）" : "方块合成 · 本地运行，不消耗流量");
-    }
-    private void closeGame() { if (!gameOpen) return; gameOpen = false; activeWeb = web; hideOverlay(gameOverlay); }
 
     // ---------------------------------------------------------------- 状态机
     private void showState(AppState.Phase p) {
@@ -999,11 +1057,24 @@ public class MainActivity extends Activity implements WebBridge.Host {
         toast(offline ? "已刷新离线镜像" : "正在重新连接站点");
     }
 
+    /** 一键恢复到干净主界面：任何叠加/卡死状态都能从这里退出。 */
+    private void resetToHome() {
+        closeAllOverlays();
+        hideCustomView();
+        hideSplash();
+        currentPath = "/";
+        syncTitle();
+        dock.setActive(0);
+        // 重新加载首页，顺带让 SPA 自己收起抽屉与注册/登录弹层。
+        navigate(BASE + "/");
+        toast("已返回首页 · " + (offline ? "离线镜像" : "在线直连"));
+    }
+
     private void toggleMode() {
         setOffline(!offline, offline ? "已切换：在线直连原站" : "已切换：离线镜像（内置全站内容）");
     }
     private void setOffline(boolean off, String msg) {
-        if (gameOpen) closeGame();
+        closeAllOverlays();      // 切换在线/离线时不留任何浮层
         offline = off;
         updateModeUi();
         toast(msg);
@@ -1188,9 +1259,18 @@ public class MainActivity extends Activity implements WebBridge.Host {
         return sp;
     }
     private void hideSplash() {
-        if (splash == null || splash.getVisibility() == View.GONE) return;
-        splash.animate().alpha(0f).setDuration(520).setStartDelay(180)
-                .withEndAction(() -> splash.setVisibility(View.GONE)).start();
+        if (splashFallback != null) { ui.removeCallbacks(splashFallback); splashFallback = null; }
+        if (splash == null || splashHidden) return;
+        splashHidden = true;
+        splash.animate().cancel();
+        splash.animate().alpha(0f).setDuration(320)
+                .withEndAction(() -> {
+                    if (splash == null) return;
+                    splash.setVisibility(View.GONE);
+                    // 从视图树移除：触发 GlowView.onDetachedFromWindow → 停止无限动画。
+                    // 旧实现只设 GONE，启动页的 ValueAnimator 会一直在后台跑（持续泄漏）。
+                    if (root != null) root.removeView(splash);
+                }).start();
     }
     private void hideCustomView() {
         if (customView == null) return;
@@ -1214,9 +1294,9 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
     @Override public void onBackPressed() {
         if (customView != null) { hideCustomView(); return; }
-        if (gameOpen) { closeGame(); return; }
-        if (libraryOpen) { closeLibrary(); return; }
-        if (archiveOpen) { closeArchive(); return; }
+        // 返回键先收敛所有浮层；旧实现按固定优先级一次只关一个，多层残留时永远关不干净。
+        OverlayController.Transition t = overlays.onBack();
+        if (t.changed) { applyOverlayTransition(t); return; }
         if (web != null && web.canGoBack()) { web.goBack(); return; }
         long now = System.currentTimeMillis();
         if (now - lastBack < 2000) super.onBackPressed();
@@ -1226,37 +1306,51 @@ public class MainActivity extends Activity implements WebBridge.Host {
     @Override protected void onResume() {
         super.onResume();
         applyThemeAndMode();
+        // resumeTimers()/pauseTimers() 是全局开关，调用一次即可；旧实现把隐藏/空白的
+        // WebView 也逐个唤醒，白白增加跨进程调用与后台 JS 执行。
         if (web != null) { web.onResume(); web.resumeTimers(); }
-        for (WebView w : new WebView[]{gameWeb, archiveWeb, libraryWeb}) if (w != null) { w.onResume(); w.resumeTimers(); }
+        WebView visible = webFor(overlays.current());
+        if (visible != null) visible.onResume();
     }
 
     @Override protected void onPause() {
         if (updater != null) updater.cancel();      // 后台不继续下载
-        if (web != null) { web.onPause(); web.pauseTimers(); }
-        for (WebView w : new WebView[]{gameWeb, archiveWeb, libraryWeb}) if (w != null) { w.onPause(); w.pauseTimers(); }
+        if (web != null) { web.onPause(); web.pauseTimers(); }   // 全局暂停，无需逐个调用
         cancelLoadTimeout();
         super.onPause();
     }
 
     @Override protected void onDestroy() {
         cancelLoadTimeout();
-        for (WebView w : new WebView[]{web, archiveWeb, gameWeb, libraryWeb}) if (w != null) w.destroy();
-        web = archiveWeb = gameWeb = libraryWeb = null;
+        for (WebView w : new WebView[]{web, archiveWeb, gameWeb}) if (w != null) w.destroy();
+        web = archiveWeb = gameWeb = null;
         super.onDestroy();
     }
 
     // ---------------------------------------------------------------- 装饰 View
     private static class GlowView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Matrix m1 = new android.graphics.Matrix();
+        private final android.graphics.Matrix m2 = new android.graphics.Matrix();
         private float t = 0f;
         private boolean reduced = false;
         private android.animation.ValueAnimator anim;
+        private RadialGradient g1, g2;
+        private long lastDraw = 0L;
+        /** 背景流动只需 ~25fps；60fps 全屏两次渐变重绘既费 GPU 又费电。 */
+        private static final long FRAME_MS = 40L;
+
         GlowView(Context c) {
             super(c);
             anim = android.animation.ValueAnimator.ofFloat(0f, 1f);
             anim.setDuration(14000);
             anim.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-            anim.addUpdateListener(a -> { t = (float) a.getAnimatedValue(); if (!reduced) invalidate(); });
+            anim.addUpdateListener(a -> {
+                t = (float) a.getAnimatedValue();
+                if (reduced) return;
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - lastDraw >= FRAME_MS) { lastDraw = now; invalidate(); }
+            });
         }
         void setReducedMotion(boolean r) {
             reduced = r;
@@ -1266,14 +1360,28 @@ public class MainActivity extends Activity implements WebBridge.Host {
         }
         @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); if (!reduced && anim != null) anim.start(); }
         @Override protected void onDetachedFromWindow() { if (anim != null) anim.cancel(); super.onDetachedFromWindow(); }
+
+        /** 渐变对象按尺寸只创建一次；每帧改为仅更新 shader 局部矩阵，消除每帧 2 次对象分配。 */
+        @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
+            super.onSizeChanged(w, h, ow, oh);
+            if (w <= 0 || h <= 0) return;
+            g1 = new RadialGradient(0, 0, w * 0.85f,
+                    Color.argb(70, 255, 186, 92), Color.TRANSPARENT, Shader.TileMode.CLAMP);
+            g2 = new RadialGradient(0, 0, w * 0.90f,
+                    Color.argb(78, 128, 92, 255), Color.TRANSPARENT, Shader.TileMode.CLAMP);
+        }
+
         @Override protected void onDraw(Canvas c) {
             float w = getWidth(), h = getHeight();
+            if (g1 == null || g2 == null) return;
             float a = (float) (Math.sin(t * Math.PI * 2) * 0.5 + 0.5);
-            p.setShader(new RadialGradient(w * (0.12f + 0.12f * a), h * 0.14f, w * 0.85f,
-                    Color.argb(70, 255, 186, 92), Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            m1.setTranslate(w * (0.12f + 0.12f * a), h * 0.14f);
+            g1.setLocalMatrix(m1);
+            p.setShader(g1);
             c.drawRect(0, 0, w, h, p);
-            p.setShader(new RadialGradient(w * (0.92f - 0.10f * a), h * 0.88f, w * 0.90f,
-                    Color.argb(78, 128, 92, 255), Color.TRANSPARENT, Shader.TileMode.CLAMP));
+            m2.setTranslate(w * (0.92f - 0.10f * a), h * 0.88f);
+            g2.setLocalMatrix(m2);
+            p.setShader(g2);
             c.drawRect(0, 0, w, h, p);
             p.setShader(null);
         }

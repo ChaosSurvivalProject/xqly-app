@@ -20,7 +20,7 @@
   <Identity
     Name="ChaosSurvivalProject.XQLY"
     Publisher="CN=XQLY-Test-Signing, O=ChaosSurvivalProject, C=CN"
-    Version="2.1.0.0"
+    Version="2.1.1.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
