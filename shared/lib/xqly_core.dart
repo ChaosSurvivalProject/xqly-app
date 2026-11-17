@@ -11,10 +11,15 @@
 library xqly_core;
 
 export 'src/app_state.dart';
+export 'src/apps.dart';
 export 'src/bridge_protocol.dart';
+export 'src/bridge_v1.dart';
 export 'src/content_manifest.dart';
 export 'src/design_tokens.dart';
+export 'src/dev_portal_state.dart';
+export 'src/endpoint_policy.dart';
 export 'src/feature_flags.dart';
+export 'src/feedback_queue.dart';
 export 'src/foundation.dart';
 export 'src/game_rules.dart';
 export 'src/identity.dart';

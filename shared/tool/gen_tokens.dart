@@ -21,6 +21,9 @@ Map<String, Object?> build() {
     'version': AppIdentity.versionName,
     'generatedBy': 'shared/tool/gen_tokens.dart',
     'schema': 1,
+    // 统一 UI 契约版本（DESIGN_SYSTEM.md）：2 = 四层 token + 组件状态 + 断点 + 平台映射。
+    'contract': 2,
+    'designContract': DesignTokens.designContract(),
     'themes': themes,
   };
 }
@@ -33,10 +36,14 @@ void main(List<String> args) {
   final String json = Json.encode(payload) + '\n';
   final String css = DesignTokens.toCss();
 
+  // 提示词 A 要求的规范命名产物 tokens.json / tokens.css，与三端映射文件
+  // 由**同一真源**一次生成（内容逐字节相同），--check 会同时校验，杜绝漂移。
   final Map<String, String> outputs = <String, String>{
     '$root/shared/design-tokens.json': json,
     '$root/assets/design-tokens.css': css,
     '$root/windows/runner/resources/design-tokens.json': json,
+    '$root/tokens.json': json,
+    '$root/tokens.css': css,
   };
 
   int bad = 0;

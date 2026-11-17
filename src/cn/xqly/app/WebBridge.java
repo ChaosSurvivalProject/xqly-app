@@ -39,6 +39,8 @@ public final class WebBridge {
         void onGetState(String id);
         void onGameSave(String data, String id);
         void onGameLoad(String id);
+        /** dev-portal 应用作用域消息（envelope 已由 BridgeProtocol 做外层校验）。 */
+        void onDevPortal(String envelope, String id);
         void reply(String json);
         void onRejected(String reason);
     }
@@ -100,6 +102,9 @@ public final class WebBridge {
                     break;
                 case "gameLoad":
                     host.onGameLoad(r.id);
+                    break;
+                case "devportal":
+                    host.onDevPortal(str(a, "envelope"), r.id);
                     break;
                 default:
                     rejected++;

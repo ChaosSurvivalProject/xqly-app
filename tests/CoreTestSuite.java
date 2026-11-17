@@ -31,6 +31,7 @@ public final class CoreTestSuite {
         syncTests(h);
         stateTests(h);
         overlayTests(h);
+        moduleTests(h);
         bundleTests(h);
         System.exit(h.run());
     }
@@ -822,7 +823,8 @@ public final class CoreTestSuite {
             OverlayController c = new OverlayController();
             OverlayController.Transition t = c.open(Layer.LIBRARY);
             eq(t.show, Layer.LIBRARY, "show LIBRARY");
-            eqInt(t.hide.length, 2, "hide ARCHIVE+GAME");
+            // 层数随应用增加时自动适配，断言语义仍是「隐藏其余全部」。
+            eqInt(t.hide.length, Layer.OVERLAYS.length - 1, "hide 其余全部浮层");
             isTrue(contains(t.hide, Layer.ARCHIVE), "ARCHIVE hidden");
             isTrue(contains(t.hide, Layer.GAME), "GAME hidden");
             isTrue(c.invariant(t), "invariant");
@@ -846,7 +848,7 @@ public final class CoreTestSuite {
             c.open(Layer.GAME);
             OverlayController.Transition t = c.closeAll();
             eq(t.show, Layer.NONE, "show NONE");
-            eqInt(t.hide.length, 3, "三层全部要求隐藏");
+            eqInt(t.hide.length, Layer.OVERLAYS.length, "全部浮层要求隐藏");
             eqInt(visibleCount(t), 0, "收敛到 0 层");
             isFalse(c.anyOpen(), "nothing open");
             isTrue(c.invariant(t), "invariant");
@@ -887,12 +889,13 @@ public final class CoreTestSuite {
             // 模拟调用方维护的「实际可见集合」：每次按迁移结果无条件重设。
             java.util.Set<Layer> visible = new java.util.HashSet<Layer>();
             java.util.Random r = new java.util.Random(20261108L);
-            Layer[] layers = { Layer.ARCHIVE, Layer.LIBRARY, Layer.GAME };
+            // 直接使用枚举全集：新增应用（如 DEV_PORTAL）自动纳入 fuzz 覆盖。
+            Layer[] layers = Layer.OVERLAYS;
             for (int i = 0; i < 200; i++) {
                 OverlayController.Transition t;
                 int op = r.nextInt(4);
-                if (op == 0) t = c.open(layers[r.nextInt(3)]);
-                else if (op == 1) t = c.close(layers[r.nextInt(3)]);
+                if (op == 0) t = c.open(layers[r.nextInt(layers.length)]);
+                else if (op == 1) t = c.close(layers[r.nextInt(layers.length)]);
                 else if (op == 2) t = c.closeAll();
                 else t = c.onBack();
                 // 调用方按迁移结果重设所有浮层可见性（BUG 修复后的正确行为）
@@ -904,6 +907,309 @@ public final class CoreTestSuite {
                         true, "可见集合与 current 一致 @step " + i);
             }
         });
+    }
+
+    // ---------------------------------------------------------------- 模组：dev-portal / xqly-bridge/1
+    private static String env(String method, Map<String, Object> params, String id) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("bridge", BridgeV1.VERSION);
+        m.put("appId", AppRegistry.DEV_PORTAL_ID);
+        m.put("id", id);
+        m.put("method", method);
+        m.put("params", params);
+        return MiniJson.stringify(m);
+    }
+
+    private static BridgeV1.CallResult vcall(String raw) {
+        return BridgeV1.validate(raw, BridgeV1.DEFAULT_PERMISSIONS, null, 1000L,
+                new HashMap<String, Long>(), true, false, false,
+                Collections.<String>emptySet());
+    }
+
+    private static BridgeV1.CallResult vcall(String raw, Set<String> perms, long nowMs,
+            Map<String, Long> lastCallAt, boolean online, boolean telemetry,
+            boolean approval, Set<String> allowlist) {
+        return BridgeV1.validate(raw, perms, null, nowMs, lastCallAt,
+                online, telemetry, approval, allowlist);
+    }
+
+    private static void moduleTests(TestHarness h) {
+        h.group("应用注册表 · 应用类模组与独立沙箱");
+        h.test("三个应用登记齐全，dev-portal 为离线只读", () -> {
+            eqInt(AppRegistry.APPS.size(), 3, "应用数");
+            AppRegistry.AppSpec p = AppRegistry.byId(AppRegistry.DEV_PORTAL_ID);
+            notNull(p, "dev-portal 应已注册");
+            eq(p.offline, AppRegistry.Offline.READ_ONLY, "离线能力");
+            eq(p.bridgeScope, "devportal:*", "桥作用域");
+            isTrue(!p.communityLabel.isEmpty(), "社区标识常驻");
+            isTrue(AppRegistry.offlineAvailable(AppRegistry.DEV_PORTAL_ID), "离线可用");
+            isFalse(AppRegistry.offlineAvailable("unknown"), "未知应用不可用");
+        });
+        h.test("路由 / 作用域 / 存储分区 / 导航深度", () -> {
+            isTrue(AppRegistry.routeAllowed("xqly-app://apps/dev-portal"), "注册路由");
+            isFalse(AppRegistry.routeAllowed("xqly-app://apps/../admin"), "路径穿越");
+            isFalse(AppRegistry.routeAllowed("xqly-app://apps/unknown"), "未注册应用");
+            isTrue(AppRegistry.scopeAllows("dev-portal", "devportal:*"), "作用域匹配");
+            isFalse(AppRegistry.scopeAllows("dev-portal", "site:*"), "跨应用作用域");
+            isTrue(AppRegistry.storageIsolated("dev-portal", "web"), "存储隔离");
+            isFalse(AppRegistry.storageIsolated("web", "web"), "同分区不隔离");
+            isTrue(AppRegistry.navDepthAllowed("dev-portal", AppRegistry.NAV_MODAL), "模态层");
+            isFalse(AppRegistry.navDepthAllowed("dev-portal", 5), "超深度");
+        });
+
+        h.group("端点策略 · 私网封锁 / Deep Link 白名单 / 零遥测");
+        h.test("私网 / 环回 / 链路本地识别", () -> {
+            String[] hosts = {"10.0.0.5", "192.168.1.9", "172.16.0.1", "127.0.0.1",
+                    "169.254.1.1", "localhost", "box.local", "x.internal", "[::1]"};
+            for (String x : hosts) isTrue(EndpointPolicy.privateNetwork(x), "私网 " + x);
+            isFalse(EndpointPolicy.privateNetwork("relay.example.com"), "公网域名");
+        });
+        h.test("端点校验：未登记 / 私网 / 非法端口 / 非法 pin 逐一拒绝", () -> {
+            Set<String> allow = new HashSet<String>(Arrays.asList("ep1"));
+            EndpointPolicy.Endpoint good = new EndpointPolicy.Endpoint(
+                    "ep1", "relay.example.com", 443,
+                    EndpointPolicy.Transport.WSS, "主端点", "");
+            eq(good.id, "ep1", "构造器");
+            isTrue(EndpointPolicy.validate(good, allow).ok, "合法端点");
+            eq(EndpointPolicy.validate(good, Collections.<String>emptySet()).reject,
+                    EndpointPolicy.Reject.NOT_ALLOWLISTED, "未登记");
+            eq(EndpointPolicy.validate(new EndpointPolicy.Endpoint(
+                    "ep1", "10.0.0.5", 443, EndpointPolicy.Transport.WSS, "", ""), allow).reject,
+                    EndpointPolicy.Reject.PRIVATE_NETWORK, "私网原因准确");
+            eq(EndpointPolicy.validate(new EndpointPolicy.Endpoint(
+                    "ep1", "relay.example.com", 22, EndpointPolicy.Transport.WSS, "", ""), allow).reject,
+                    EndpointPolicy.Reject.BAD_PORT, "非法端口");
+            eq(EndpointPolicy.validate(new EndpointPolicy.Endpoint(
+                    "ep1", "relay.example.com", 443, EndpointPolicy.Transport.WSS, "", "abc"), allow).reject,
+                    EndpointPolicy.Reject.BAD_PIN, "非法 pin");
+        });
+        h.test("normalizePath 保留 scheme 的 //，Deep Link 不再被误拒", () -> {
+            eq(EndpointPolicy.normalizePath("xqly://app/dev-portal"),
+                    "xqly://app/dev-portal", "scheme 不被折叠");
+            eq(EndpointPolicy.normalizePath("xqly://app//dev-portal"),
+                    "xqly://app/dev-portal", "路径重复斜杠归一化");
+            isTrue(EndpointPolicy.deepLinkAllowed("xqly://app/dev-portal"), "抽屉深链");
+            isTrue(EndpointPolicy.deepLinkAllowed("xqly://app/dev-portal?view=session"), "带查询");
+            isTrue(EndpointPolicy.deepLinkAllowed("xqly://app/dev-portal/session/abc_1"), "会话深链");
+            eq(EndpointPolicy.sessionIdFrom("xqly://app/dev-portal/session/abc_1"),
+                    "abc_1", "会话 id 提取");
+            for (String bad : new String[]{"xqly://app/admin", "xqly://app/dev-portal/../admin",
+                    "xqly://app/dev-portal/%2e%2e/admin", "xqly://app/dev-portal?evil=1",
+                    "xqly://app/dev-portal/session/bad.id"}) {
+                isFalse(EndpointPolicy.deepLinkAllowed(bad), "错误放行 " + bad);
+            }
+            isTrue(EndpointPolicy.queryAllowed("view=session&focus=input"), "合法查询");
+            isFalse(EndpointPolicy.queryAllowed("token=abc"), "未知查询键");
+            for (String bad : new String[]{"javascript:alert(1)", "file:///etc/passwd",
+                    "data:text/html,x", "http://relay.example.com", "https://10.0.0.5/x"}) {
+                isFalse(EndpointPolicy.linkAllowed(bad), "错误放行链接 " + bad);
+            }
+            isTrue(EndpointPolicy.linkAllowed("https://relay.example.com/session"), "合法 HTTPS");
+            isFalse(EndpointPolicy.TELEMETRY_DEFAULT, "默认遥测关闭");
+        });
+
+        h.group("xqly-bridge/1 · 16 方法 / 越权拒绝 / 幂等限流 / 脱敏");
+        h.test("16 条方法与默认权限仅 6 项，版本与注册表一致", () -> {
+            eqInt(BridgeV1.METHODS.size(), 16, "方法数");
+            eqInt(BridgeV1.permissionMatrix().size(), 16, "权限矩阵");
+            eqInt(BridgeV1.DEFAULT_PERMISSIONS.size(), 6, "默认权限数");
+            isTrue(BridgeV1.DEFAULT_PERMISSIONS.contains("public"), "public 默认授予");
+            isFalse(BridgeV1.DEFAULT_PERMISSIONS.contains("credential"), "credential 不授予");
+            isFalse(BridgeV1.DEFAULT_PERMISSIONS.contains("telemetry:optional"), "遥测不授予");
+            eq(BridgeV1.VERSION, AppRegistry.BRIDGE_VERSION, "桥版本一致");
+        });
+        h.test("未知方法 / 越界 appId / 版本 / 畸形 JSON / 超长消息 / 非法 id", () -> {
+            eq(vcall(env("xqly.unknown", Collections.<String, Object>emptyMap(), "c1")).reject,
+                    BridgeV1.Reject.UNKNOWN_METHOD, "未知方法");
+            Map<String, Object> foreign = new LinkedHashMap<String, Object>();
+            foreign.put("bridge", BridgeV1.VERSION);
+            foreign.put("appId", "web");
+            foreign.put("id", "c1");
+            foreign.put("method", "xqly.env.getInfo");
+            foreign.put("params", Collections.<String, Object>emptyMap());
+            eq(vcall(MiniJson.stringify(foreign)).reject, BridgeV1.Reject.FOREIGN_APP, "越界应用");
+            eq(vcall("{bad json").reject, BridgeV1.Reject.BAD_JSON, "畸形 JSON");
+            eq(vcall(repeat("x", 9000)).reject, BridgeV1.Reject.TOO_LARGE, "超长消息");
+            eq(vcall(env("xqly.env.getInfo", Collections.<String, Object>emptyMap(), "bad.id")).reject,
+                    BridgeV1.Reject.BAD_ID, "非法 id");
+        });
+        h.test("越权能力 100% 拒绝：凭据 / 遥测 / 工具审批 / 网络 / 导出", () -> {
+            String[] methods = {"xqly.credential.getEndpoint", "xqly.credential.unlock",
+                    "xqly.telemetry.report", "xqly.devportal.approveTool",
+                    "xqly.devportal.connect", "xqly.file.pickSave", "xqly.error.report"};
+            Set<String> allow = new HashSet<String>(Arrays.asList("ep1"));
+            for (String m : methods) {
+                Map<String, Object> p = new LinkedHashMap<String, Object>();
+                if (m.endsWith("getEndpoint") || m.endsWith("connect")) p.put("endpointId", "ep1");
+                if (m.endsWith("approveTool")) { p.put("toolId", "demo.tool"); p.put("scope", "workspace"); }
+                BridgeV1.CallResult r = BridgeV1.validate(env(m, p, "c1"),
+                        BridgeV1.DEFAULT_PERMISSIONS, null, 1000L,
+                        new HashMap<String, Long>(), true, false, false, allow);
+                isFalse(r.ok, m + " 不应放行");
+                eq(r.reject, BridgeV1.Reject.PERMISSION_DENIED, m + " 拒绝原因");
+            }
+        });
+        h.test("重复 id 去重与 120ms 同方法限流", () -> {
+            Set<String> seen = new HashSet<String>();
+            Map<String, Long> last = new HashMap<String, Long>();
+            String raw = env("xqly.env.getInfo", Collections.<String, Object>emptyMap(), "x1");
+            isTrue(BridgeV1.validate(raw, BridgeV1.DEFAULT_PERMISSIONS, seen, 1000L,
+                    last, true, false, false, Collections.<String>emptySet()).ok, "首次");
+            eq(BridgeV1.validate(raw, BridgeV1.DEFAULT_PERMISSIONS, seen, 5000L,
+                    last, true, false, false, Collections.<String>emptySet()).reject,
+                    BridgeV1.Reject.DUPLICATE_ID, "重复 id");
+            Map<String, Long> l2 = new HashMap<String, Long>();
+            isTrue(vcall(raw, BridgeV1.DEFAULT_PERMISSIONS, 1000L, l2, true, false, false,
+                    Collections.<String>emptySet()).ok, "首次调用");
+            eq(vcall(raw, BridgeV1.DEFAULT_PERMISSIONS, 1050L, l2, true, false, false,
+                    Collections.<String>emptySet()).reject, BridgeV1.Reject.RATE_LIMITED, "限流");
+            isTrue(vcall(raw, BridgeV1.DEFAULT_PERMISSIONS, 1200L, l2, true, false, false,
+                    Collections.<String>emptySet()).ok, "间隔后放行");
+        });
+        h.test("参数 fuzzing：超长 / 缺必填 / 危险键 / 受限键 / 合法链接", () -> {
+            Map<String, Object> longTitle = new LinkedHashMap<String, Object>();
+            longTitle.put("title", repeat("x", 2100));
+            eq(vcall(env("xqly.ui.setTitle", longTitle, "c1")).reject,
+                    BridgeV1.Reject.BAD_PARAMS, "超长参数");
+            Map<String, Object> missing = new LinkedHashMap<String, Object>();
+            missing.put("subtitle", "s");
+            eq(vcall(env("xqly.ui.setTitle", missing, "c1")).reject,
+                    BridgeV1.Reject.BAD_PARAMS, "缺必填");
+            Map<String, Object> tokens = new LinkedHashMap<String, Object>();
+            tokens.put("tokens", new ArrayList<Object>());
+            eq(vcall(env("xqly.theme.subscribe", tokens, "c1")).reject,
+                    BridgeV1.Reject.FORBIDDEN_KEY, "危险键");
+            Map<String, Object> badUrl = new LinkedHashMap<String, Object>();
+            badUrl.put("url", "javascript:x");
+            eq(vcall(env("xqly.link.open", badUrl, "c1")).reject,
+                    BridgeV1.Reject.BAD_PARAMS, "危险 URL");
+            Map<String, Object> goodUrl = new LinkedHashMap<String, Object>();
+            goodUrl.put("url", "https://relay.example.com/kb");
+            isTrue(vcall(env("xqly.link.open", goodUrl, "c1")).ok, "合法 URL");
+        });
+        h.test("approveTool 的 scope 与 grant 各司其职", () -> {
+            Set<String> wide = new HashSet<String>(BridgeV1.DEFAULT_PERMISSIONS);
+            wide.add("user_approval");
+            Map<String, Object> ok = new LinkedHashMap<String, Object>();
+            ok.put("toolId", "demo.tool"); ok.put("scope", "workspace"); ok.put("grant", "once");
+            isTrue(vcall(env("xqly.devportal.approveTool", ok, "c1"), wide, 1000L,
+                    new HashMap<String, Long>(), true, false, true,
+                    Collections.<String>emptySet()).ok, "合法审批");
+            Map<String, Object> bad = new LinkedHashMap<String, Object>();
+            bad.put("toolId", "demo.tool"); bad.put("scope", "once"); bad.put("grant", "bogus");
+            eq(vcall(env("xqly.devportal.approveTool", bad, "c1"), wide, 1000L,
+                    new HashMap<String, Long>(), true, false, true,
+                    Collections.<String>emptySet()).reject,
+                    BridgeV1.Reject.BAD_PARAMS, "非法 grant");
+        });
+        h.test("离线降级 / 遥测关闭 / 未审批 三条红线", () -> {
+            Set<String> wide = new HashSet<String>(BridgeV1.DEFAULT_PERMISSIONS);
+            wide.add("network:devportal"); wide.add("telemetry:optional"); wide.add("user_approval");
+            Set<String> allow = new HashSet<String>(Arrays.asList("ep1"));
+            Map<String, Object> conn = new LinkedHashMap<String, Object>();
+            conn.put("endpointId", "ep1");
+            eq(vcall(env("xqly.devportal.connect", conn, "c1"), wide, 1000L,
+                    new HashMap<String, Long>(), false, false, false, allow).reject,
+                    BridgeV1.Reject.OFFLINE_UNAVAILABLE, "离线降级");
+            eq(vcall(env("xqly.telemetry.report", Collections.<String, Object>emptyMap(), "c1"),
+                    wide, 1000L, new HashMap<String, Long>(), true, false, false,
+                    Collections.<String>emptySet()).reject,
+                    BridgeV1.Reject.TELEMETRY_OFF, "遥测关闭");
+            Map<String, Object> ap = new LinkedHashMap<String, Object>();
+            ap.put("toolId", "demo.tool"); ap.put("scope", "workspace"); ap.put("grant", "once");
+            eq(vcall(env("xqly.devportal.approveTool", ap, "c1"), wide, 1000L,
+                    new HashMap<String, Long>(), true, false, false,
+                    Collections.<String>emptySet()).reject,
+                    BridgeV1.Reject.APPROVAL_REQUIRED, "未审批");
+        });
+        h.test("响应安全与日志脱敏", () -> {
+            isTrue(BridgeV1.responseSafe("{\"ok\":true}"), "普通响应安全");
+            for (String bad : new String[]{"{\"imei\":\"x\"}", "{\"authorization\":\"Bearer x\"}",
+                    "{\"path\":\"file:///data/user/0/x\"}", "{\"api_key\":\"x\"}"}) {
+                isFalse(BridgeV1.responseSafe(bad), "错误放行 " + bad);
+            }
+            isTrue(BridgeV1.redact("{\"token\":\"abc123\"}").contains("\"***\""), "密钥抹除");
+            isFalse(BridgeV1.redact("{\"token\":\"abc123\"}").contains("abc123"), "值不残留");
+            isTrue(BridgeV1.redact("file:///data/user/0/secret").contains("***"), "路径抹除");
+        });
+
+        h.group("反馈队列 / 门户状态机 / URL 策略 / 浮层");
+        h.test("反馈时长、位置与有界优先级队列", () -> {
+            eqInt(FeedbackQueue.durationFor(FeedbackQueue.Level.ERROR, "x"), 6000, "错误时长");
+            eqInt(FeedbackQueue.durationFor(FeedbackQueue.Level.INFO, "x"), 4000, "普通时长");
+            eq(FeedbackQueue.PLACEMENT_WEBVIEW, "top-safe-bar", "WebView 位置");
+            eq(FeedbackQueue.PLACEMENT_ANDROID, "bottom-bar", "Android 位置");
+            FeedbackQueue.State q = new FeedbackQueue.State();
+            FeedbackQueue.Feedback info = FeedbackQueue.make("i1",
+                    FeedbackQueue.Level.INFO, "普通", "", null);
+            FeedbackQueue.Feedback err = FeedbackQueue.make("e1",
+                    FeedbackQueue.Level.ERROR, "错误", "", null);
+            eq(q.push(info, 0L).id, "i1", "首个提示");
+            eq(q.push(err, 10L).id, "e1", "高优先级抢占");
+            eqInt(q.pendingCount(), 1, "被抢占者入队");
+            notNull(q.tick(7000L), "超时后切到下一条");
+        });
+        h.test("离线只读 / 连接状态流转 / 断开清空", () -> {
+            DevPortalState s = new DevPortalState();
+            eq(s.mode(), DevPortalState.Mode.OFFLINE_READ_ONLY, "默认离线只读");
+            isFalse(s.canConnect(), "离线不可连");
+            isFalse(s.canExecute(), "v1 不执行工具");
+            isFalse(s.connect("ep1", new HashSet<String>(Arrays.asList("ep1")), 1000L), "离线连接被拒");
+            s.setOnline(true);
+            isTrue(s.connect("ep1", new HashSet<String>(Arrays.asList("ep1")), 1000L), "在线可连");
+            eq(s.link(), DevPortalState.Link.CHECKING, "检查中");
+            s.confirmConnected();
+            eq(s.link(), DevPortalState.Link.CONNECTED, "已连接");
+            isTrue(s.addSession("s1"), "会话登记");
+            s.onChunk();
+            eqInt(s.streamedChunks(), 1, "流式块计数");
+            s.setOnline(false);
+            eq(s.link(), DevPortalState.Link.DISCONNECTED, "回离线断开");
+            isTrue(s.sessions().isEmpty(), "会话清空");
+            eqInt(s.streamedChunks(), 0, "计数清零");
+        });
+        h.test("解锁失败三次锁定 60 秒；snapshot 不泄露敏感字段", () -> {
+            DevPortalState u = new DevPortalState();
+            isTrue(u.recordUnlock(false, 1000L), "第 1 次");
+            isTrue(u.recordUnlock(false, 1100L), "第 2 次");
+            isFalse(u.recordUnlock(false, 1200L), "第 3 次触发锁定");
+            isTrue(u.isLocked(1300L), "锁定中");
+            isFalse(u.recordUnlock(true, 1300L), "锁定期间拒绝");
+            isFalse(u.isLocked(61200L), "60 秒后解锁");
+            String snap = MiniJson.stringify(u.snapshot()).toLowerCase(Locale.US);
+            for (String f : new String[]{"token", "secret", "imei", "deviceid", "password", "apikey"})
+                isFalse(snap.contains(f), "snapshot 泄露 " + f);
+            eq(u.snapshot().get("canExecute"), Boolean.FALSE, "不暴露执行能力");
+            eq(u.snapshot().get("telemetry"), Boolean.FALSE, "零遥测");
+            isTrue(DevPortalState.offlineEmptyState().containsKey("next"), "离线态含下一步");
+        });
+        h.test("URL 策略：dev-portal 子目录精确放行，其它子目录拒绝", () -> {
+            eq(UrlPolicy.classify("file:///android_asset/apps/dev-portal/index.html"),
+                    UrlPolicy.Kind.LOCAL_ASSET, "内置页");
+            eq(UrlPolicy.classify("file:///android_asset/apps/evil/index.html"),
+                    UrlPolicy.Kind.BLOCKED, "任意子目录");
+            isTrue(UrlPolicy.bridgeAllowed("file:///android_asset/apps/dev-portal/index.html"), "可注入桥");
+            isFalse(UrlPolicy.bridgeAllowed("file:///android_asset/apps/evil/index.html"), "不可注入桥");
+            isTrue(UrlPolicy.localResourceAllowed("file:///android_asset/apps/dev-portal/app.js"), "资源白名单");
+            isFalse(UrlPolicy.localResourceAllowed("file:///android_asset/apps/dev-portal/secret.js"), "未登记资源");
+            eq(UrlPolicy.DEV_PORTAL_PAGE, "apps/dev-portal/index.html", "页面常量");
+        });
+        h.test("OverlayController 已纳入 DEV_PORTAL 且仍满足互斥不变量", () -> {
+            eqInt(OverlayController.Layer.OVERLAYS.length, 4, "四个浮层");
+            OverlayController c = new OverlayController();
+            OverlayController.Transition t = c.open(OverlayController.Layer.DEV_PORTAL);
+            eq(t.show, OverlayController.Layer.DEV_PORTAL, "显示开发者平台");
+            isTrue(c.invariant(t), "互斥不变量");
+            isTrue(contains(t.hide, OverlayController.Layer.LIBRARY), "资料库被隐藏");
+            isTrue(contains(t.hide, OverlayController.Layer.GAME), "游戏被隐藏");
+            eq(c.onBack().show, OverlayController.Layer.NONE, "返回键收敛");
+        });
+    }
+
+    private static String repeat(String c, int n) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < n; i++) b.append(c);
+        return b.toString();
     }
 
     /** 按迁移结果计算可见层数（模拟调用方无条件重设可见性）。 */

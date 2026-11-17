@@ -17,15 +17,19 @@ import time
 from datetime import datetime, timezone
 
 # 真实组件清单：运行时零第三方库，构建期工具与可选系统组件如实列出。
+# 自有组件版本用 SELF_VERSION 占位，生成时统一替换为本次发布版本，杜绝 SBOM 版本漂移。
+SELF_VERSION = "__SELF__"
 COMPONENTS = [
-    ("xqly_core (Dart shared)", "2.0.1", "MIT", "Organization: ChaosSurvivalProject",
+    ("xqly_core (Dart shared)", SELF_VERSION, "MIT", "Organization: ChaosSurvivalProject",
      "纯 Dart 双平台共享业务核心，零第三方依赖"),
-    ("xqly-android (native Java + WebView)", "2.0.1", "MIT",
+    ("xqly-android (native Java + WebView)", SELF_VERSION, "MIT",
      "Organization: ChaosSurvivalProject", "零 Gradle 构建链，运行时无第三方库"),
-    ("xqly-windows-core (C++17)", "2.0.1", "MIT",
+    ("xqly-windows-core (C++17)", SELF_VERSION, "MIT",
      "Organization: ChaosSurvivalProject", "平台无关核心，真实编译与测试"),
-    ("xqly-windows-shell (Win32)", "2.0.1", "MIT",
+    ("xqly-windows-shell (Win32)", SELF_VERSION, "MIT",
      "Organization: ChaosSurvivalProject", "原生 Win32 外壳"),
+    ("xqly-dev-portal (self-developed module)", SELF_VERSION, "MIT",
+     "Organization: ChaosSurvivalProject", "应用类模组：纯自研本地页面 + Java/Dart 逻辑，零第三方运行时"),
     ("Android SDK build-tools", "35.0.0", "LicenseRef-Android-SDK",
      "Organization: Google", "仅构建期，不随包分发"),
     ("Android platform", "android-35", "LicenseRef-Android-SDK",
@@ -97,6 +101,8 @@ def main():
         "comment": "客户端自研代码以 MIT 开源；官网文字/图片/商标/站点素材不在 MIT 授权范围内，见 NOTICE.md",
     }]
     for i, (name, ver, lic, supplier, comment) in enumerate(COMPONENTS):
+        if ver == SELF_VERSION:
+            ver = version
         packages.append({
             "SPDXID": "SPDXRef-Package-component-{}".format(i + 1),
             "name": name,

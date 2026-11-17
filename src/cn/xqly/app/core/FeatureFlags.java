@@ -32,6 +32,9 @@ public final class FeatureFlags {
             new Flag("haptics", true,       "游戏震动"),
             new Flag("daily_challenge", true, "每日挑战"),
             new Flag("cloud_sync", false, "跨设备云端同步（默认关闭，仅本地导出/导入）"),
+            new Flag("dev_portal", true, "开发者平台（远程门户 v1，离线只读）"),
+            new Flag("devportal_connect", false, "远程连接能力（默认关闭，需用户配置 endpoint）"),
+            new Flag("telemetry", false, "可选遥测（默认关闭，首次进入明示选择）"),
     };
 
     public static Map<String, Boolean> defaults() {

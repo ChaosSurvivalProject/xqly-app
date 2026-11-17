@@ -31,6 +31,47 @@
   --xq-glass-blur:22.0px;
   --xq-touch-scale:1;
   --xq-max-reading:760.0px;
+  --xq-space-1:4.0px;
+  --xq-space-2:8.0px;
+  --xq-space-3:12.0px;
+  --xq-space-4:16.0px;
+  --xq-space-6:24.0px;
+  --xq-space-8:32.0px;
+  --xq-space-12:48.0px;
+  --xq-space-16:64.0px;
+  --xq-space-24:96.0px;
+  --xq-r-xs:4.0px;
+  --xq-r-sm:8.0px;
+  --xq-r-md:12.0px;
+  --xq-r-lg:20.0px;
+  --xq-r-pill:999.0px;
+  --xq-fs-h1:18.0px;
+  --xq-lh-h1:24.0px;
+  --xq-fs-h2:16.0px;
+  --xq-lh-h2:24.0px;
+  --xq-fs-h3:14.0px;
+  --xq-lh-h3:22.0px;
+  --xq-fs-bodyL:16.0px;
+  --xq-lh-bodyL:24.0px;
+  --xq-fs-bodyM:14.0px;
+  --xq-lh-bodyM:22.0px;
+  --xq-fs-caption:12.0px;
+  --xq-lh-caption:18.0px;
+  --xq-dur-fast:120ms;
+  --xq-dur-base:200ms;
+  --xq-dur-slow:300ms;
+  --xq-bp-narrowMin:320px;
+  --xq-bp-narrowMax:519px;
+  --xq-bp-phoneMin:0px;
+  --xq-bp-phoneMax:599px;
+  --xq-bp-foldableMin:600px;
+  --xq-bp-foldableMax:1199px;
+  --xq-bp-desktopMin:1200px;
+  --xq-elev-0:0.0;
+  --xq-elev-1:0.01;
+  --xq-elev-2:0.02;
+  --xq-elev-3:0.03;
+  --xq-outline:1px;
 }
 [data-theme="dark"][data-mode="glass"]{
   --xq-background:#0a0e18;
@@ -227,4 +268,7 @@
 @media (prefers-reduced-motion: reduce){
   *{--xq-motion-short:0ms;--xq-motion-medium:0ms;
     --xq-motion-long:0ms;--xq-motion-emphasis:0ms;}
+  *{transition-duration:120ms !important;
+    transition-property:opacity !important;
+    transform:none !important;animation:none !important;}
 }

@@ -20,10 +20,14 @@ public final class UrlPolicy {
             "/announcements", "/kb", "/monitor", "/wiki", "/admin", "/api", "/assets"
     };
 
-    /** 内置 HTML 页面白名单（仅这几个可 file:// 打开）。 */
-    // 设置由原生 Dialog 实现，不设 file:// 页面；只保留真实存在的内置页
+    /** 开发者平台本地页面（单一 WebView 池内的一个应用路由，不是新 Activity）。 */
+    public static final String DEV_PORTAL_PAGE = "apps/dev-portal/index.html";
+
+    /** 内置 HTML 页面白名单（仅这几个可 file:// 打开）。
+     *  dev-portal 使用完整相对路径精确匹配，不按文件名放宽，避免任意子目录越权。 */
     private static final String[] LOCAL_PAGES = {
-            "archive.html", "game.html", "library.html"
+            "archive.html", "game.html", "library.html",
+            "apps/dev-portal/index.html"
     };
 
     public static Kind classify(String raw) {
@@ -41,7 +45,8 @@ public final class UrlPolicy {
             if (!path.startsWith("/android_asset/")) return Kind.BLOCKED;
             if (path.contains("..") || path.contains("\\") || path.contains("%2e%2e")) return Kind.BLOCKED;
             String name = path.substring("/android_asset/".length());
-            if (name.contains("/")) return Kind.BLOCKED;
+            // 只允许 dev-portal 这一个受控子目录；且必须逐字命中 LOCAL_PAGES。
+            if (name.contains("/") && !name.startsWith("apps/dev-portal/")) return Kind.BLOCKED;
             for (String ok : LOCAL_PAGES) if (ok.equals(name)) return Kind.LOCAL_ASSET;
             return Kind.BLOCKED;
         }
@@ -78,7 +83,10 @@ public final class UrlPolicy {
     /** 内置页面可加载的同目录 js/css 资源（严格白名单，不含子目录、不含穿越）。 */
     private static final String[] LOCAL_RESOURCES = {
             "game-engine.js", "bridge-shim.js", "library.css", "game.css",
-            "design-tokens.css"   // 由 shared/tool/gen_tokens.dart 生成的双平台共享令牌
+            "design-tokens.css",  // 由 shared/tool/gen_tokens.dart 生成的双平台共享令牌
+            "apps/dev-portal/app.css",
+            "apps/dev-portal/app.js",
+            "apps/dev-portal/bridge-v1.js"
     };
 
     public static boolean localResourceAllowed(String raw) {
@@ -90,7 +98,8 @@ public final class UrlPolicy {
             String path = u.getPath() == null ? "" : u.getPath();
             if (!path.startsWith("/android_asset/")) return false;
             String name = path.substring("/android_asset/".length());
-            if (name.contains("/") || name.contains("..") || name.contains("\\")) return false;
+            if (name.contains("..") || name.contains("\\")) return false;
+            // 完整相对路径白名单，不做 basename 退化匹配（防子目录越权）。
             for (String ok : LOCAL_RESOURCES) if (ok.equals(name)) return true;
             return false;
         } catch (Exception e) { return false; }

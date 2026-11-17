@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-mode="glass">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>星穹旅驿 · 开发者平台</title>
+<link rel="stylesheet" href="file:///android_asset/design-tokens.css">
+<link rel="stylesheet" href="app.css">
+<script src="bridge-v1.js"></script>
+</head>
+<body>
+
+<div class="feedback" id="feedback" role="status" aria-live="polite" data-level="info">
+  <span class="grow" id="feedback-text"></span>
+  <button class="btn sm ghost btn-icon" id="feedback-close" type="button" aria-label="关闭提示">✕</button>
+</div>
+
+<header class="hd">
+  <div class="grow">
+    <h1>星穹旅驿开发者平台</h1>
+    <p class="dim">受控远程门户 v1 · 应用类模组 · xqly-bridge/1</p>
+  </div>
+  <button class="btn sm ghost btn-icon" id="btn-close" type="button" aria-label="关闭开发者平台">✕</button>
+</header>
+
+<main>
+
+  <!-- 离线只读：明确「现在没有内容 / 为什么 / 下一步做什么」，不做无限转圈 -->
+  <div class="banner hidden" id="offline-banner">
+    <b>当前处于离线只读模式</b> · 本模块在离线档案中不提供远程会话与工具执行，仅保留应用外壳、帮助与接入条件。
+  </div>
+
+  <section>
+    <div class="sec-hd"><h2>连接管理</h2><span class="badge" id="theme-badge">主题加载中…</span></div>
+    <div class="card">
+      <div class="row" style="margin-bottom: var(--xq-gap-sm)">
+        <span class="dot" id="link-dot" data-s="DISCONNECTED"></span>
+        <b id="link-text">未连接</b>
+        <span class="dim" id="link-note">尚未配置远程服务端点</span>
+      </div>
+      <dl class="kv">
+        <dt>桥协议</dt><dd class="mono">xqly-bridge/1</dd>
+        <dt>桥作用域</dt><dd class="mono">devportal:*</dd>
+        <dt>离线能力</dt><dd>只读外壳</dd>
+        <dt>工具执行</dt><dd>v1 不提供</dd>
+        <dt>遥测</dt><dd>默认关闭</dd>
+        <dt>密钥落盘</dt><dd>无</dd>
+      </dl>
+      <div class="row" style="margin-top: var(--xq-gap-md)">
+        <button class="btn primary sm" id="btn-connect" type="button">检查连接</button>
+        <button class="btn sm" id="btn-ota" type="button">检查更新</button>
+      </div>
+      <p class="dim" style="margin-top: var(--xq-gap-sm)">
+        端点白名单默认为空。v1 不预置任何服务器、不伪造连接成功；未配置或越权的连接请求会被原生层 100% 拒绝。
+      </p>
+    </div>
+  </section>
+
+  <section id="section-apps">
+    <div class="sec-hd"><h2>应用抽屉</h2><span class="badge">注册表驱动 · 独立存储分区</span></div>
+    <div class="apps" id="apps"><p class="dim">正在读取应用注册表…</p></div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>流式会话</h2><span class="badge">需已确认连接</span></div>
+    <div class="card">
+      <div class="stream" id="stream">尚无会话内容。连接已配置且经配对确认的远程服务后，才会出现流式消息。</div>
+      <div class="row" style="margin-top: var(--xq-gap-sm)">
+        <input type="text" id="msg" placeholder="会话内容（未连接时发送会被拒绝）" aria-label="会话内容" style="flex:1 1 200px">
+        <button class="btn sm" id="btn-send" type="button">发送</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>工作区</h2><span class="badge">只读</span></div>
+    <div class="card">
+      <div class="empty-state">
+        <h3>本模块在离线档案中不可用</h3>
+        <p class="dim">v1 不内置文件读写、命令执行或模型推理；工作区仅展示接入条件，不加载第三方插件。</p>
+        <ol>
+          <li>连接已配置且经配对确认的远程服务后可使用会话功能；</li>
+          <li>或返回应用抽屉继续浏览离线内容；</li>
+          <li>或重新检查更新以获取后续版本。</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>工具审批</h2><span class="badge">v1 不可执行</span></div>
+    <div class="card">
+      <p class="dim">任何工具执行都必须先由用户在原生层显式批准。v1 不提供可批准的工具执行能力，因此审批调用一律被拒绝，不会出现「静默执行」。</p>
+      <div class="row" style="margin-top: var(--xq-gap-sm)">
+        <button class="btn sm" id="btn-approve" type="button">申请工具审批</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="section-help">
+    <div class="sec-hd"><h2>接入条件与隐私</h2><span class="badge">帮助</span></div>
+    <div class="card">
+      <p class="dim">本页为纯本地资源，不请求网络、不加载外部脚本、不读取设备标识、不写入凭据。所有跨层调用经外层 BridgeProtocol 与内层 BridgeV1 双重校验。</p>
+      <ul class="dim" style="margin: var(--xq-gap-sm) 0 0; padding-left: 20px">
+        <li>端点须为 WSS / SSE / HTTPS，主机经白名单与端口约束校验；</li>
+        <li>未知方法、越权能力、危险键、重复 id、超限参数一律拒绝；</li>
+        <li>日志与导出统一脱敏，仅允许 messageHash / digest 形式的摘要；</li>
+        <li>诊断上报默认关闭，需用户显式开启才会放行。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>桥方法与默认权限</h2><span class="badge" id="method-count">16 条</span></div>
+    <div class="card">
+      <table class="matrix">
+        <thead><tr><th>方法</th><th>默认</th></tr></thead>
+        <tbody id="matrix-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <p class="dim">
+        社区非官方 · 自研远程门户 ｜ 默认零遥测、零密钥落盘 ｜ v1 不内置执行引擎、不加载第三方插件。
+      </p>
+      <div class="row" style="margin-top: var(--xq-gap-sm)">
+        <button class="btn sm ghost" id="btn-drawer" type="button">返回应用抽屉</button>
+        <button class="btn sm ghost" id="btn-help" type="button">查看接入条件</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

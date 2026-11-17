@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 1793890532,
+  "version": 1794923018,
   "files": [
     {
       "p": "archive.html",
@@ -14,8 +14,8 @@
     },
     {
       "p": "design-tokens.css",
-      "sha256": "27eb77d2af01037f3652a111fa7401e5bd7226881ee5395140c1153c6d416640",
-      "size": 5764
+      "sha256": "77d0a985615ebc17f56ebfcfe8b405231ee90a6ca61ebd0436ebd37af0a174f7",
+      "size": 6851
     },
     {
       "p": "game-engine.js",
@@ -43,9 +43,29 @@
       "size": 11424
     },
     {
+      "p": "apps/dev-portal/app.css",
+      "sha256": "7f0ce18ccf15b31913dd571e200369ef6139d1085feb4f386a55a1fbea3e76fe",
+      "size": 8003
+    },
+    {
+      "p": "apps/dev-portal/app.js",
+      "sha256": "97eaf5a7008d814a233b7798c8c9ee5e374958c75cc1079ce8a65da221b89762",
+      "size": 7718
+    },
+    {
+      "p": "apps/dev-portal/bridge-v1.js",
+      "sha256": "dcef2aba424b34eec7dc2bda7b8c228fc8b98b0af27c8b6c0a46ddbea36d66c3",
+      "size": 5087
+    },
+    {
+      "p": "apps/dev-portal/index.html",
+      "sha256": "9756cead6279bb3d7f10817bd61a798358381face50fc9a5418d5b01f455acb9",
+      "size": 6345
+    },
+    {
       "p": "config/flags.json",
-      "sha256": "4372681fdfb906897bc4dc7efc50edd93d80839c5dddda1775cb29bc4e2ff640",
-      "size": 250
+      "sha256": "9418385eb68e6b8071ecd074167ae9f151c47f4e6599c4aed15d0597e2dc458f",
+      "size": 347
     },
     {
       "p": "data/api_forum_articles_1_comments.json",

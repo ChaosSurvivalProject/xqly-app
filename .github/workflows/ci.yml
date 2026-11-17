@@ -20,7 +20,7 @@ env:
 jobs:
   # ---------------------------------------------------------------- 共享核心
   shared-core:
-    name: 共享 Dart 核心 · 静态分析 + 152 测试
+    name: 共享 Dart 核心 · 静态分析 + 178 测试
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

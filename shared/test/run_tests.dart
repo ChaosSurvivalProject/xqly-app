@@ -144,6 +144,7 @@ void main(List<String> args) {
   syncPackageTests(h);
   syncMergeTests(h);
   transportTests(h);
+  moduleTests(h, args);
   realAssetTests(h, args);
 
   exitCode = h.finish();
@@ -215,10 +216,10 @@ void jsonTests(Harness h) {
 
 void identityTests(Harness h) {
   h.group('双平台身份常量（与 Android Java 侧逐项一致）');
-  h.t('业务版本 2.1.1 / code 8 / 四段版本', () {
-    eq(AppIdentity.versionName, '2.1.1');
-    eq(AppIdentity.versionCode, 8);
-    eq(AppIdentity.windowsVersion, '2.1.1.0');
+  h.t('业务版本 2.2.0 / code 9 / 四段版本', () {
+    eq(AppIdentity.versionName, '2.2.0');
+    eq(AppIdentity.versionCode, 9);
+    eq(AppIdentity.windowsVersion, '2.2.0.0');
   });
   h.t('发布者与仓库钉扎', () {
     eq(AppIdentity.repo, 'ChaosSurvivalProject/xqly-app');
@@ -1242,5 +1243,406 @@ void realAssetTests(Harness h, List<String> args) {
       ok(f.existsSync(), '缺少 ${f.path}');
       ok(f.readAsStringSync().contains('design-tokens.css'), '$name 未引入令牌');
     }
+  });
+}
+
+// ---------------------------------------------------------------- 模组：dev-portal / xqly-bridge/1 / 统一 UI 契约
+void moduleTests(Harness h, List<String> args) {
+  final String root = args.isNotEmpty ? args[0] : '..';
+
+  String env(String method, Map<String, Object?> params,
+          {String id = 'c1',
+          String bridge = BridgeV1.version,
+          String appId = AppRegistry.devPortalId}) =>
+      Json.encode(<String, Object?>{
+        'bridge': bridge,
+        'appId': appId,
+        'id': id,
+        'method': method,
+        'params': params,
+      });
+
+  CallResult v(String raw,
+          {Set<String>? permissions,
+          Set<String>? seenIds,
+          int nowMs = 1000,
+          Map<String, int>? lastCallAt,
+          bool online = true,
+          bool telemetryOptIn = false,
+          bool approvalGranted = false,
+          Set<String> endpointAllowlist = const <String>{}}) =>
+      BridgeV1.validate(
+        raw,
+        permissions: permissions ?? BridgeV1.defaultPermissions,
+        seenIds: seenIds,
+        nowMs: nowMs,
+        lastCallAt: lastCallAt ?? <String, int>{},
+        online: online,
+        telemetryOptIn: telemetryOptIn,
+        approvalGranted: approvalGranted,
+        endpointAllowlist: endpointAllowlist,
+      );
+
+  h.group('应用注册表 · 应用类模组与独立沙箱');
+  h.t('三个应用登记齐全，dev-portal 为离线只读且社区标识常驻', () {
+    eq(AppRegistry.apps.length, 3);
+    final AppSpec p = AppRegistry.byId(AppRegistry.devPortalId)!;
+    eq(p.offline, OfflineCapability.readOnly);
+    eq(p.bridgeScope, 'devportal:*');
+    eq(p.communityLabel.isEmpty, false);
+    eq(AppRegistry.offlineAvailable(AppRegistry.devPortalId), true);
+    eq(AppRegistry.offlineAvailable('unknown'), false);
+  });
+  h.t('路由白名单：仅已登记应用，路径穿越/未知 scheme 全拒绝', () {
+    ok(AppRegistry.routeAllowed('xqly-app://apps/dev-portal'));
+    ok(AppRegistry.routeAllowed('xqly-app://apps/web'));
+    for (final String bad in <String>[
+      'xqly-app://apps/unknown',
+      'xqly-app://apps/../admin',
+      'xqly-app://apps/dev-portal?next=evil',
+      'xqly-app://apps/dev-portal#x',
+      'https://evil.example/apps/web',
+      'xqly-app://apps/',
+    ]) {
+      ok(!AppRegistry.routeAllowed(bad), '错误放行了 $bad');
+    }
+  });
+  h.t('桥作用域与存储分区按应用隔离', () {
+    ok(AppRegistry.scopeAllows('dev-portal', 'devportal:*'));
+    ok(!AppRegistry.scopeAllows('dev-portal', 'site:*'));
+    ok(!AppRegistry.scopeAllows('unknown', 'devportal:*'));
+    ok(AppRegistry.storageIsolated('dev-portal', 'web'));
+    ok(AppRegistry.storageIsolated('web', 'cube-craft'));
+    ok(!AppRegistry.storageIsolated('web', 'web'));
+  });
+  h.t('导航深度不超过注册表上限', () {
+    ok(AppRegistry.navDepthAllowed('dev-portal', AppNav.drawer));
+    ok(AppRegistry.navDepthAllowed('dev-portal', AppNav.modal));
+    ok(!AppRegistry.navDepthAllowed('dev-portal', 5));
+    ok(!AppRegistry.navDepthAllowed('unknown', 1));
+  });
+
+  h.group('端点策略 · 私网封锁 / Deep Link 白名单 / 零遥测');
+  h.t('私网、环回、链路本地地址一律识别并拒绝', () {
+    for (final String h in <String>[
+      '10.0.0.5', '192.168.1.9', '172.16.0.1', '172.31.255.255',
+      '127.0.0.1', '169.254.1.1', 'localhost', 'box.local', 'x.internal', '[::1]'
+    ]) {
+      ok(EndpointPolicy.privateNetwork(h), '未识别私网 $h');
+    }
+    ok(!EndpointPolicy.privateNetwork('relay.example.com'));
+  });
+  h.t('主机白名单：域名可、纯 IP / 通配 / 超长 / 连续点不可', () {
+    ok(EndpointPolicy.hostAllowed('relay.example.com'));
+    for (final String bad in <String>[
+      '1.2.3.4', '*.example.com', '', 'a..b', '.example.com',
+      'x' * 260, 'relay_example.com'
+    ]) {
+      ok(!EndpointPolicy.hostAllowed(bad), '错误放行主机 $bad');
+    }
+  });
+  h.t('端点校验：未登记 / 非法端口 / 非法 pin / 私网全部拒绝', () {
+    const Endpoint good = Endpoint(id: 'ep1', host: 'relay.example.com', port: 443);
+    eq(EndpointPolicy.validate(good, <String>{'ep1'}).ok, true);
+    eq(EndpointPolicy.validate(good, <String>{}).reject,
+        EndpointReject.notAllowlisted);
+    eq(EndpointPolicy.validate(
+        const Endpoint(id: 'ep1', host: 'relay.example.com', port: 22),
+        <String>{'ep1'}).reject, EndpointReject.badPort);
+    eq(EndpointPolicy.validate(
+        const Endpoint(id: 'ep1', host: '10.0.0.5'),
+        <String>{'ep1'}).reject, EndpointReject.privateNetwork);
+    eq(EndpointPolicy.validate(
+        const Endpoint(id: 'ep1', host: 'relay.example.com', pinSha256: 'abc'),
+        <String>{'ep1'}).reject, EndpointReject.badPin);
+    eq(EndpointPolicy.validate(
+        const Endpoint(id: 'bad id!', host: 'relay.example.com'),
+        <String>{'bad id!'}).reject, EndpointReject.badId);
+  });
+  h.t('链接打开：危险协议 / 明文 / 私网 HTTPS 拒绝，合法 HTTPS 放行', () {
+    for (final String bad in <String>[
+      'javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,x',
+      'intent://evil', 'http://relay.example.com', 'https://10.0.0.5/x',
+      'https://user@relay.example.com/x'
+    ]) {
+      ok(!EndpointPolicy.linkAllowed(bad), '错误放行链接 $bad');
+    }
+    ok(EndpointPolicy.linkAllowed('https://relay.example.com/session'));
+    ok(!EndpointPolicy.telemetryDefault, '默认遥测必须为关闭');
+  });
+  h.t('Deep Link 白名单：仅 dev-portal 路径，编码绕过与非法会话 id 拒绝', () {
+    ok(EndpointPolicy.deepLinkAllowed('xqly://app/dev-portal'));
+    ok(EndpointPolicy.deepLinkAllowed('xqly://app/dev-portal?view=session'));
+    ok(EndpointPolicy.deepLinkAllowed('xqly://app/dev-portal/session/abc_1'));
+    eq(EndpointPolicy.sessionIdFrom('xqly://app/dev-portal/session/abc_1'),
+        'abc_1');
+    for (final String bad in <String>[
+      'xqly://app/admin',
+      'xqly://app/dev-portal/../admin',
+      'xqly://app/dev-portal/%2e%2e/admin',
+      'xqly://app/dev-portal/session/../x',
+      'xqly://app/dev-portal?evil=1',
+      'xqly://app/dev-portal/session/bad.id',
+    ]) {
+      ok(!EndpointPolicy.deepLinkAllowed(bad), '错误放行深链 $bad');
+    }
+    ok(EndpointPolicy.queryAllowed('view=session&focus=input'));
+    ok(!EndpointPolicy.queryAllowed('token=abc'));
+  });
+
+  h.group('xqly-bridge/1 · 16 方法 / 权限 / 幂等 / 限流 / 脱敏');
+  h.t('16 条方法与权限矩阵完整，默认权限仅 6 项', () {
+    eq(BridgeV1.methods.length, 16);
+    eq(BridgeV1.permissionMatrix().length, 16);
+    eq(BridgeV1.defaultPermissions.length, 6);
+    ok(BridgeV1.defaultPermissions.contains('public'));
+    ok(!BridgeV1.defaultPermissions.contains('credential'));
+    ok(!BridgeV1.defaultPermissions.contains('telemetry:optional'));
+    ok(!BridgeV1.defaultPermissions.contains('network:devportal'));
+    eq(BridgeV1.version, 'xqly-bridge/1');
+    eq(AppRegistry.bridgeVersion, BridgeV1.version);
+  });
+  h.t('未知方法 / 越界 appId / 版本 / 畸形 JSON / 超长消息全部拒绝', () {
+    eq(v(env('xqly.unknown', <String, Object?>{})).reject,
+        RejectV1.unknownMethod);
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}, appId: 'web')).reject,
+        RejectV1.foreignApp);
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}, bridge: 'xqly-bridge/0'))
+        .reject, RejectV1.badVersion);
+    eq(v('{bad json').reject, RejectV1.badJson);
+    eq(v('x' * 9000).reject, RejectV1.tooLarge);
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}, id: 'bad.id')).reject,
+        RejectV1.badId);
+  });
+  h.t('越权能力 100% 拒绝：凭据 / 遥测 / 工具审批 / 网络 / 导出', () {
+    for (final String m in <String>[
+      'xqly.credential.getEndpoint',
+      'xqly.credential.unlock',
+      'xqly.telemetry.report',
+      'xqly.devportal.approveTool',
+      'xqly.devportal.connect',
+      'xqly.file.pickSave',
+      'xqly.error.report',
+    ]) {
+      final Map<String, Object?> p = <String, Object?>{};
+      if (m == 'xqly.credential.getEndpoint') p['endpointId'] = 'ep1';
+      if (m == 'xqly.devportal.connect') p['endpointId'] = 'ep1';
+      if (m == 'xqly.devportal.approveTool') {
+        p['toolId'] = 'demo.tool';
+        p['scope'] = 'workspace';
+      }
+      // 带一个已登记端点，让校验链能走到「权限」这一步，而非提前被 BAD_PARAMS 拦下。
+      final CallResult r = v(env(m, p), endpointAllowlist: <String>{'ep1'});
+      eq(r.ok, false, '$m 不应放行');
+      eq(r.reject, RejectV1.permissionDenied, '$m 拒绝原因');
+    }
+  });
+  h.t('重复 id 去重与 120ms 同方法限流生效', () {
+    final Set<String> seen = <String>{};
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}, id: 'x1'),
+        seenIds: seen).ok, true);
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}, id: 'x1'),
+        seenIds: seen, nowMs: 5000).reject, RejectV1.duplicateId);
+    final Map<String, int> last = <String, int>{};
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}),
+        nowMs: 1000, lastCallAt: last).ok, true);
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}),
+        nowMs: 1050, lastCallAt: last).reject, RejectV1.rateLimited);
+    eq(v(env('xqly.env.getInfo', <String, Object?>{}),
+        nowMs: 1200, lastCallAt: last).ok, true);
+  });
+  h.t('参数 fuzzing：超长 / 缺必填 / 非有限数 / 危险键 / 受限键', () {
+    eq(v(env('xqly.ui.setTitle', <String, Object?>{'title': rep('x', 2100)}),
+        nowMs: 2000).reject, RejectV1.badParams);
+    eq(v(env('xqly.ui.setTitle', <String, Object?>{'subtitle': 's'}),
+        nowMs: 3000).reject, RejectV1.badParams);
+    eq(v('{"bridge":"xqly-bridge/1","appId":"dev-portal","id":"n1",'
+        '"method":"xqly.ui.setTitle","params":{"title":"ok","ratio":NaN}}')
+        .reject, RejectV1.badJson);
+    eq(v(env('xqly.theme.subscribe', <String, Object?>{'tokens': <Object?>[]}),
+        nowMs: 4000).reject, RejectV1.forbiddenKey);
+    eq(v(env('xqly.link.open', <String, Object?>{'url': 'javascript:x'}),
+        nowMs: 5000).reject, RejectV1.badParams);
+    eq(v(env('xqly.link.open',
+        <String, Object?>{'url': 'https://relay.example.com/kb'}),
+        nowMs: 6000).ok, true);
+  });
+  h.t('approveTool 的 scope 与 grant 各司其职，不混用', () {
+    final Set<String> wide = <String>{
+      ...BridgeV1.defaultPermissions,
+      'user_approval',
+    };
+    eq(v(env('xqly.devportal.approveTool', <String, Object?>{
+      'toolId': 'demo.tool', 'scope': 'workspace', 'grant': 'once'
+    }), permissions: wide, approvalGranted: true).ok, true);
+    eq(v(env('xqly.devportal.approveTool', <String, Object?>{
+      'toolId': 'demo.tool', 'scope': 'once', 'grant': 'bogus'
+    }), permissions: wide, approvalGranted: true).reject, RejectV1.badParams);
+  });
+  h.t('离线降级 / 遥测关闭 / 未审批 三条红线', () {
+    final Set<String> wide = <String>{
+      ...BridgeV1.defaultPermissions,
+      'network:devportal', 'telemetry:optional', 'user_approval',
+    };
+    eq(v(env('xqly.devportal.connect',
+        <String, Object?>{'endpointId': 'ep1'}),
+        permissions: wide, endpointAllowlist: <String>{'ep1'},
+        online: false).reject, RejectV1.offlineUnavailable);
+    eq(v(env('xqly.telemetry.report', <String, Object?>{}),
+        permissions: wide, telemetryOptIn: false).reject, RejectV1.telemetryOff);
+    eq(v(env('xqly.devportal.approveTool', <String, Object?>{
+      'toolId': 'demo.tool', 'scope': 'workspace', 'grant': 'once'
+    }), permissions: wide, approvalGranted: false).reject,
+        RejectV1.approvalRequired);
+  });
+  h.t('响应安全与日志脱敏：密钥 / 设备标识 / 路径全部抹掉', () {
+    eq(BridgeV1.responseSafe('{"ok":true}'), true);
+    for (final String bad in <String>[
+      '{"imei":"x"}', '{"authorization":"Bearer x"}',
+      '{"path":"file:///data/user/0/x"}', '{"api_key":"x"}'
+    ]) {
+      eq(BridgeV1.responseSafe(bad), false, '错误放行响应 $bad');
+    }
+    ok(BridgeV1.redact('{"token":"abc123"}').contains('"***"'));
+    ok(!BridgeV1.redact('{"token":"abc123"}').contains('abc123'));
+    ok(BridgeV1.redact('file:///data/user/0/secret').contains('***'));
+  });
+
+  h.group('反馈队列 / 门户状态机 · 离线只读与隐私');
+  h.t('反馈时长、位置与有界优先级队列', () {
+    eq(FeedbackQueue.durationFor(FeedbackLevel.error, 'x'), 6000);
+    eq(FeedbackQueue.durationFor(FeedbackLevel.info, 'x'), 4000);
+    eq(FeedbackQueue.placementAndroid, 'bottom-bar');
+    eq(FeedbackQueue.placementWebView, 'top-safe-bar');
+    final FeedbackQueueState q = FeedbackQueueState();
+    final Feedback info = FeedbackQueue.make('i1', FeedbackLevel.info, '普通');
+    final Feedback err = FeedbackQueue.make('e1', FeedbackLevel.error, '错误');
+    eq(q.push(info, 0).id, 'i1');
+    eq(q.push(err, 10).id, 'e1');
+    eq(q.pendingCount, 1);
+    ok(q.tick(7000) != null);
+  });
+  h.t('离线只读：不能连接 / 不能执行 / 断开清空', () {
+    final DevPortalState s = DevPortalState();
+    eq(s.mode, PortalMode.offlineReadOnly);
+    eq(s.canConnect, false);
+    eq(s.canExecute, false);
+    eq(s.connect('ep1', <String>{'ep1'}, 1000), false);
+    s.setOnline(true);
+    eq(s.connect('ep1', <String>{'ep1'}, 1000), true);
+    eq(s.link, LinkState.checking);
+    s.confirmConnected();
+    eq(s.addSession('s1'), true);
+    s.onChunk();
+    eq(s.streamedChunks, 1);
+    s.setOnline(false);
+    eq(s.link, LinkState.disconnected);
+    ok(s.sessions.isEmpty);
+    eq(s.streamedChunks, 0);
+  });
+  h.t('未登记端点与非法 id 拒绝连接；解锁失败三次锁定 60 秒', () {
+    final DevPortalState s = DevPortalState();
+    s.setOnline(true);
+    eq(s.connect('ep1', <String>{}, 1000), false);
+    eq(s.connect('../evil', <String>{'../evil'}, 1000), false);
+    eq(s.connect('ep1', <String>{'ep1'}, 1000), true);
+    final DevPortalState u = DevPortalState();
+    eq(u.recordUnlock(false, 1000), true);
+    eq(u.recordUnlock(false, 1100), true);
+    eq(u.recordUnlock(false, 1200), false);
+    eq(u.isLocked(1300), true);
+    eq(u.recordUnlock(true, 1300), false);
+    eq(u.isLocked(61200), false);
+    eq(u.recordUnlock(true, 61200), true);
+  });
+  h.t('snapshot 不泄露敏感字段，离线空状态含三句话与下一步', () {
+    final String j = Json.encode(DevPortalState().snapshot()).toLowerCase();
+    for (final String f in <String>[
+      'token', 'secret', 'imei', 'deviceid', 'password', 'apikey', 'private_key'
+    ]) {
+      ok(!j.contains(f), 'snapshot 泄露 $f');
+    }
+    eq(DevPortalState().snapshot()['canExecute'], false);
+    eq(DevPortalState().snapshot()['telemetry'], false);
+    final Map<String, Object?> e = DevPortalState.offlineEmptyState();
+    for (final String k in <String>[
+      'title', 'why', 'next', 'notFound', 'action', 'thirdPartyLabel'
+    ]) {
+      ok(e.containsKey(k) && (e[k] as String).isNotEmpty, '离线空状态缺 $k');
+    }
+  });
+
+  h.group('统一 UI 契约 / 前端资源 / URL 策略');
+  h.t('设计契约：四层 / 三平台 / 断点 / 组件状态 / 反馈位置', () {
+    final Map<String, Object?> c = DesignTokens.designContract();
+    eq(c['schema'], 2);
+    eq((c['layers'] as List).length, 4);
+    eq((c['platforms'] as List).length, 3);
+    ok((c['breakpoints'] as Map).containsKey('desktopMin'));
+    ok((c['componentStates'] as Map).containsKey('button'));
+    final Map<String, Object?> fb = c['feedback'] as Map<String, Object?>;
+    eq(fb['placementWebView'], 'top-safe-bar');
+    eq(fb['placementAndroid'], 'bottom-bar');
+    final String css = DesignTokens.toCss();
+    for (final String v2 in <String>[
+      '--xq-dur-fast', '--xq-r-pill', '--xq-outline', '--xq-fs-caption'
+    ]) {
+      ok(css.contains(v2), 'CSS 缺少 $v2');
+    }
+  });
+  h.t('令牌产物 contract=2 且三端映射文件字节一致', () {
+    final Map<String, Object?> m =
+        Json.object(File('$root/shared/design-tokens.json').readAsStringSync());
+    eq(m['contract'], 2);
+    ok(m.containsKey('designContract'));
+    eq(File('$root/assets/design-tokens.css').readAsStringSync(),
+        File('$root/tokens.css').readAsStringSync());
+    eq(File('$root/shared/design-tokens.json').readAsStringSync(),
+        File('$root/windows/runner/resources/design-tokens.json')
+            .readAsStringSync());
+  });
+  h.t('URL 策略：dev-portal 子目录精确放行，其它子目录拒绝', () {
+    ok(UrlPolicy.bridgeAllowed(
+        'file:///android_asset/apps/dev-portal/index.html'));
+    ok(!UrlPolicy.bridgeAllowed(
+        'file:///android_asset/apps/evil/index.html'));
+    ok(!UrlPolicy.bridgeAllowed(
+        'file:///android_asset/apps/dev-portal/../evil.html'));
+    ok(UrlPolicy.localResourceAllowed(
+        'file:///android_asset/apps/dev-portal/app.js'));
+    ok(!UrlPolicy.localResourceAllowed(
+        'file:///android_asset/apps/dev-portal/secret.js'));
+  });
+  h.t('dev-portal 四个资源随包且被内容清单收录', () {
+    const List<String> names = <String>[
+      'index.html', 'app.css', 'app.js', 'bridge-v1.js'
+    ];
+    for (final String p in names) {
+      ok(File('$root/assets/apps/dev-portal/$p').existsSync(), '缺少 $p');
+    }
+    final Map<String, Object?> m = Json.object(
+        File('$root/assets/MANIFEST.json').readAsStringSync());
+    final Set<String> paths = <String>{
+      for (final Object? f in (m['files'] as List<Object?>))
+        (f as Map)['p'] as String
+    };
+    for (final String p in names) {
+      ok(paths.contains('apps/dev-portal/$p'), '清单未收录 $p');
+    }
+  });
+  h.t('前端零外部请求 / 零密钥 / 零常驻定时器，且引入共享令牌', () {
+    final String js = File('$root/assets/apps/dev-portal/bridge-v1.js')
+            .readAsStringSync() +
+        File('$root/assets/apps/dev-portal/app.js').readAsStringSync();
+    for (final String bad in <String>[
+      'fetch(', 'XMLHttpRequest', 'eval(', 'new Image',
+      'api_key', 'Authorization', 'setInterval(', 'https://'
+    ]) {
+      ok(!js.contains(bad), '出现禁止调用 $bad');
+    }
+    final String html =
+        File('$root/assets/apps/dev-portal/index.html').readAsStringSync();
+    ok(html.contains('design-tokens.css'), '未引入共享令牌');
+    ok(!html.contains('<script src="http'), '引入了外部脚本');
   });
 }

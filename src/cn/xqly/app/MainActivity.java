@@ -42,14 +42,20 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import cn.xqly.app.core.AppIdentity;
+import cn.xqly.app.core.AppRegistry;
 import cn.xqly.app.core.AppState;
+import cn.xqly.app.core.BridgeV1;
 import cn.xqly.app.core.ContentManifest;
+import cn.xqly.app.core.DevPortalState;
 import cn.xqly.app.core.DesignTokens;
 import cn.xqly.app.core.FeatureFlags;
 import cn.xqly.app.core.MiniJson;
@@ -70,17 +76,18 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
 
-    public static final String VERSION_NAME = "2.1.1";
-    public static final int VERSION_CODE = 8;
+    public static final String VERSION_NAME = "2.2.0";
+    public static final int VERSION_CODE = 9;
 
     private FrameLayout root;
-    private WebView web, archiveWeb, gameWeb;
+    private WebView web, archiveWeb, gameWeb, devPortalWeb;
     private GlassDock dock;
     private GlassDrawable pillGlass;
     private View sidePill;
     private TextView modeLabel, pillPage;
     private View statusDot, progressFill, progressTrack;
-    private FrameLayout archiveOverlay, gameOverlay, libraryOverlay, splash, fullscreenContainer;
+    private FrameLayout archiveOverlay, gameOverlay, libraryOverlay, devPortalOverlay,
+            splash, fullscreenContainer;
     private StateOverlay stateOverlay;
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
@@ -92,6 +99,17 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private boolean offline = false;
     /** 浮层可见性的唯一真源；保证任意时刻最多一个浮层可见（修复 v2.1.0 层叠/关不掉 bug）。 */
     private final OverlayController overlays = new OverlayController();
+    /** dev-portal v1：纯自研远程门户状态机；零密钥落盘、默认零遥测、v1 不执行第三方插件。 */
+    private final DevPortalState devPortal = new DevPortalState();
+    /** xqly-bridge/1 幂等 id 去重与按方法限流（仅本会话内存态，不落盘）。 */
+    private final Set<String> v1SeenIds = Collections.synchronizedSet(new HashSet<String>());
+    private final Map<String, Long> v1LastCallAt = Collections.synchronizedMap(new HashMap<String, Long>());
+    /**
+     * 默认权限不在此另起一套：直接复用 BridgeV1.DEFAULT_PERMISSIONS（Dart / Java / 宿主同一真源）。
+     * 明确不授予：credential、network:devportal、user_approval、file:export、
+     * telemetry:optional、diagnostics —— 零密钥落盘、默认零遥测、v1 不执行工具，越权 100% 拒绝。
+     */
+    private static final Set<String> V1_PERMISSIONS = BridgeV1.DEFAULT_PERMISSIONS;
     /** 内置浮层页面延迟加载：只在首次真正打开时才 loadUrl，避免启动时 3 个 WebView 并发渲染。 */
     private final Map<Layer, String> pendingPages = new HashMap<>();
     private Updater updater;
@@ -176,6 +194,10 @@ public class MainActivity extends Activity implements WebBridge.Host {
         root.addView(libraryOverlay, new FrameLayout.LayoutParams(-1, -1));
         gameOverlay = buildLocalOverlay("game.html", Layer.GAME);
         root.addView(gameOverlay, new FrameLayout.LayoutParams(-1, -1));
+        // 开发者平台：单一 WebView 池里的一个应用路由，纳入 OverlayController 互斥，
+        // 不与主站 / 资料库 / 游戏叠加，返回键与「✦ 首页」都能干净关闭。
+        devPortalOverlay = buildLocalOverlay(UrlPolicy.DEV_PORTAL_PAGE, Layer.DEV_PORTAL);
+        root.addView(devPortalOverlay, new FrameLayout.LayoutParams(-1, -1));
         splash = buildSplash();
         root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         // 兜底：无论页面是否 onPageFinished（离线镜像加载失败 / 超时 / 证书错误），
@@ -378,6 +400,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
 
         pill.addView(pillButton("▤", "资料", DUSK, v -> openLibrary()));
         pill.addView(pillButton("◈", "游戏", DUSK, v -> openGame()));
+        pill.addView(pillButton("⌘", "开发", DUSK, v -> openDevPortal()));
         pill.addView(pillButton("↻", "刷新", DUSK, v -> reloadCurrent()));
         pill.addView(pillButton("⇄", "换边", DUSK, v -> switchSide()));
         pill.addView(pillButton("⇧", "更新", DUSK, v -> {
@@ -812,6 +835,115 @@ public class MainActivity extends Activity implements WebBridge.Host {
         reply(MiniJson.stringify(resp));
     }
 
+    /**
+     * dev-portal 应用作用域桥：外层 BridgeProtocol 已校验消息来自可信内置页且 envelope 为字符串，
+     * 这里再用 BridgeV1 做「方法白名单 / 权限 / 幂等 id / 限流 / 参数 fuzzing / 离线 / 遥测 / 审批」二次校验。
+     * 全程零密钥落盘；v1 不内置执行引擎、不加载第三方插件、不发起未授权网络请求。
+     */
+    @Override public void onDevPortal(String envelope, String id) {
+        long now = System.currentTimeMillis();
+        BridgeV1.CallResult r = BridgeV1.validate(envelope, V1_PERMISSIONS, v1SeenIds,
+                now, v1LastCallAt, !offline, false, false, endpointAllowlist());
+        Map<String, Object> resp = new HashMap<String, Object>();
+        resp.put("bridge", BridgeV1.VERSION);
+        resp.put("appId", DevPortalState.APP_ID);
+        resp.put("id", r.id == null || r.id.isEmpty() ? (id == null ? "" : id) : r.id);
+        if (!r.ok) {
+            resp.put("ok", false);
+            resp.put("error", r.reason());
+            portalReply(MiniJson.stringify(resp));
+            return;
+        }
+        resp.put("ok", true);
+        resp.put("method", r.method);
+        Object result = dispatchV1(r, now);
+        if (result != null) resp.put("result", result);
+        portalReply(MiniJson.stringify(resp));
+    }
+
+    /** 端点白名单：默认空（未配置）。v1 不预置任何服务器，也不伪造连接成功。 */
+    private Set<String> endpointAllowlist() {
+        Set<String> s = new HashSet<String>();
+        String raw = userPrefs == null ? "" : userPrefs.get("devportal.endpoints", "");
+        for (String part : raw.split(",")) {
+            String t = part.trim();
+            if (!t.isEmpty() && t.length() <= 64) s.add(t);
+        }
+        return s;
+    }
+
+    /** xqly-bridge/1 响应只回投到当前可见的 dev-portal WebView，不广播到主站与其它浮层。 */
+    private void portalReply(String json) {
+        if (devPortalWeb == null || overlays.current() != Layer.DEV_PORTAL) return;
+        final String safe = BridgeV1.responseSafe(json) ? json
+                : "{\"bridge\":\"xqly-bridge/1\",\"ok\":false,\"error\":\"RESPONSE_BLOCKED\"}";
+        try {
+            devPortalWeb.evaluateJavascript(
+                    "window.XQApp&&window.XQApp.onMessage(" + safe + ");", null);
+        } catch (Exception ignored) { }
+    }
+
+    /** 宿主只更新状态机并回投结构化结果：不发网络请求、不读写凭据、不执行工具、不写剪贴板。 */
+    private Object dispatchV1(BridgeV1.CallResult r, long nowMs) {
+        Map<String, Object> p = r.params;
+        switch (r.method) {
+            case "xqly.env.getInfo": {
+                Map<String, Object> m = new HashMap<String, Object>(DevPortalState.envInfo());
+                m.put("offline", offline);
+                return m;
+            }
+            case "xqly.theme.subscribe":
+                return themeSnapshot();
+            case "xqly.nav.open":
+                return AppRegistry.toJson();
+            case "xqly.devportal.connect": {
+                boolean ok = devPortal.connect(String.valueOf(p.get("endpointId")),
+                        endpointAllowlist(), nowMs);
+                Map<String, Object> m = new HashMap<String, Object>();
+                m.put("accepted", ok);
+                m.put("link", devPortal.link().name());
+                m.put("note", ok ? "已记录端点，等待原生配对确认（v1 不内置配对协议）"
+                        : "端点未配置或越权，已拒绝");
+                return m;
+            }
+            case "xqly.devportal.send": {
+                boolean ok = devPortal.link() == DevPortalState.Link.CONNECTED;
+                if (ok) {
+                    devPortal.addSession(String.valueOf(p.get("requestId")));
+                    devPortal.onChunk();
+                }
+                Map<String, Object> m = new HashMap<String, Object>();
+                m.put("accepted", ok);
+                m.put("link", devPortal.link().name());
+                m.put("note", ok ? "" : "未建立已确认连接，已拒绝发送");
+                return m;
+            }
+            case "xqly.ota.check":
+                return Collections.<String, Object>singletonMap("channel", "stable");
+            case "xqly.ui.setTitle":
+            case "xqly.ui.showFeedback":
+            case "xqly.error.report":
+                return Collections.<String, Object>singletonMap("accepted", Boolean.TRUE);
+            case "xqly.clipboard.copy":
+            case "xqly.file.pickSave":
+                // 需要系统级用户确认的能力，v1 不静默代劳。
+                return Collections.<String, Object>singletonMap("accepted", Boolean.FALSE);
+            default:
+                return devPortal.snapshot();
+        }
+    }
+
+    /** 主题订阅返回共享令牌单源信息，而非另起一套色值。 */
+    private Map<String, Object> themeSnapshot() {
+        Map<String, Object> m = new HashMap<String, Object>();
+        m.put("theme", theme == DesignTokens.Theme.LIGHT ? "light" : "dark");
+        m.put("mode", displayMode == DesignTokens.Mode.ECO ? "eco"
+                : displayMode == DesignTokens.Mode.CONTRAST ? "contrast" : "glass");
+        m.put("source", "shared/design-tokens.json");
+        m.put("breakpoint", isTablet ? "tablet" : "phone");
+        return m;
+    }
+
     @Override public void reply(String json) {
         // 只投递可见页面：隐藏浮层的 WebView 不该为每次桥接消息执行 JS。
         evalOnVisible("window.XQ&&XQ.onMessage(" + json + ");");
@@ -885,6 +1017,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         closeAllOverlays();               // 任意导航先收敛到主界面，杜绝残留浮层
         dock.setActive(index);
         if ("__ARCHIVE__".equals(path)) { openArchive(); return; }
+        if ("__DEV_PORTAL__".equals(path)) { openDevPortal(); return; }
         currentPath = path; syncTitle();
         navigate(BASE + path);
     }
@@ -903,6 +1036,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         overlay.addView(w, new FrameLayout.LayoutParams(-1, -1));
         if (layer == Layer.ARCHIVE) archiveWeb = w;
         else if (layer == Layer.GAME) gameWeb = w;
+        else if (layer == Layer.DEV_PORTAL) devPortalWeb = w;
         pendingPages.put(layer, page);    // 首次打开时才 loadUrl（启动性能）
         return overlay;
     }
@@ -910,6 +1044,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private WebView webFor(Layer l) {
         if (l == Layer.ARCHIVE) return archiveWeb;
         if (l == Layer.GAME) return gameWeb;
+        if (l == Layer.DEV_PORTAL) return devPortalWeb;
         return null;                      // LIBRARY 是原生 View；NONE 无浮层
     }
 
@@ -917,6 +1052,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         if (l == Layer.ARCHIVE) return archiveOverlay;
         if (l == Layer.LIBRARY) return libraryOverlay;
         if (l == Layer.GAME) return gameOverlay;
+        if (l == Layer.DEV_PORTAL) return devPortalOverlay;
         return null;
     }
 
@@ -959,6 +1095,12 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private void openGame() {
         applyOverlayTransition(overlays.open(Layer.GAME));
         toast(offline ? "离线小游戏 · 方块合成（无需联网）" : "方块合成 · 本地运行，不消耗流量");
+    }
+    /** 开发者平台入口：与资料库 / 游戏同级的应用路由，同样遵守「最多一个浮层可见」。 */
+    private void openDevPortal() {
+        devPortal.setOnline(!offline);
+        applyOverlayTransition(overlays.open(Layer.DEV_PORTAL));
+        toast(offline ? "开发者平台 · 离线只读（远程会话不可用）" : "开发者平台 · 受控远程门户 v1");
     }
     private void closeAllOverlays() { applyOverlayTransition(overlays.closeAll()); }
 

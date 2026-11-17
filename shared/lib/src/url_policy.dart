@@ -18,19 +18,27 @@ class UrlPolicy {
   ];
 
   /// 允许由内置页面加载的本地资源（其余内置文件不给网页读取）。
+  /// dev-portal 使用**完整相对路径**精确匹配，不按文件名放宽，避免任意子目录越权。
   static const List<String> localResources = <String>[
     'game-engine.js',
     'bridge-shim.js',
     'library.css',
     'game.css',
     'design-tokens.css',
+    'apps/dev-portal/app.css',
+    'apps/dev-portal/app.js',
+    'apps/dev-portal/bridge-v1.js',
   ];
 
   static const List<String> localPages = <String>[
     'archive.html',
     'game.html',
     'library.html',
+    'apps/dev-portal/index.html',
   ];
+
+  /// 开发者平台本地页面（单一 WebView 池内的一个应用路由，不是新 Activity）。
+  static const String devPortalPage = 'apps/dev-portal/index.html';
 
   static UrlKind classify(String? raw) {
     if (raw == null || raw.isEmpty || raw.length > 4096) {
@@ -85,9 +93,10 @@ class UrlPolicy {
     final UrlKind k = classify(url);
     if (k != UrlKind.site && k != UrlKind.localAsset) return false;
     if (k == UrlKind.localAsset) {
+      // 完整相对路径精确匹配：apps/dev-portal/index.html 不会因 basename
+      // 与任意同名 index.html 混淆，也不会放行同目录下的其它文件。
       final String p = url!.substring(localAssetPrefix.length);
-      final String base = p.contains('/') ? p.substring(p.lastIndexOf('/') + 1) : p;
-      return localPages.contains(base);
+      return localPages.contains(p);
     }
     return true;
   }
@@ -111,8 +120,8 @@ class UrlPolicy {
     if (p.startsWith(localAssetPrefix)) {
       p = p.substring(localAssetPrefix.length);
     }
-    final String base = p.contains('/') ? p.substring(p.lastIndexOf('/') + 1) : p;
-    return localResources.contains(base) && safeAssetPath(p);
+    // 完整相对路径白名单，不做 basename 退化匹配（防子目录越权）。
+    return localResources.contains(p) && safeAssetPath(p);
   }
 
   /// 防 ZIP 路径穿越：拒绝绝对、回退、反斜杠、盘符、控制字符与超长路径。

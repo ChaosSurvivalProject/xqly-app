@@ -15,8 +15,8 @@ BT="$SDK/build-tools/$BT_VER"
 JAR="$SDK/platforms/$PLATFORM/android.jar"
 
 # 版本唯一真源：Manifest 与 MainActivity 必须与此一致，防止漂移
-V_CODE=8
-V_NAME=2.1.1
+V_CODE=9
+V_NAME=2.2.0
 
 OUT="${OUT:-$ROOT/dist/星穹旅驿.apk}"
 KS_PASS="${KS_PASS:-xqly2026}"
@@ -65,14 +65,15 @@ python3 tools/gen_manifest.py
 python3 tools/gen_search_index.py --check
 python3 tools/gen_manifest.py --check
 
-echo "=== [3/12] Dart 共享业务核心测试（152 用例）==="
+echo "=== [3/12] Dart 共享业务核心测试（178 用例）==="
 ( cd "$ROOT/shared" && "$DART" test/run_tests.dart .. | tail -4 )
 
-echo "=== [4/12] JVM 逻辑测试（core，零依赖）==="
+echo "=== [4/12] JVM 逻辑测试（core，零依赖，136 用例）==="
 bash tests/run-tests.sh | tail -4
 
-echo "=== [5/12] Node 游戏规则引擎测试 ==="
+echo "=== [5/12] Node 游戏规则引擎与 dev-portal 前端桥测试 ==="
 node tests/game-engine.test.js | tail -4
+node tests/dev-portal.test.js | tail -4
 
 echo "=== [6/12] 编译资源 ==="
 "$BT/aapt2" compile --dir res -o build/res.zip

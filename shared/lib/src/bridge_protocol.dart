@@ -64,6 +64,9 @@ class BridgeProtocol {
     'syncApply',
     'syncCancel',
     'windowCommand',
+    // dev-portal 应用作用域：只携带一个 envelope 字符串，细粒度校验由
+    // BridgeV1（xqly-bridge/1）完成；这里不新增 JS 接口，复用唯一入口。
+    'devportal',
   };
 
   static const Set<String> writeTypes = <String>{
@@ -166,6 +169,13 @@ class BridgeProtocol {
           const <String>['newTab', 'closeTab', 'nextTab', 'prevTab', 'restoreTab',
             'focusSearch', 'openSettings', 'togglePause'].contains(c);
     }
+    if (type == 'devportal') {
+      // envelope 必须是单个有界字符串；内容与权限由 BridgeV1 逐条校验，
+      // 未在白名单内的方法 / 越界 appId / 危险键一律在那一层被拒绝。
+      if (a.length != 1) return false;
+      final Object? e = a['envelope'];
+      return e is String && e.isNotEmpty && e.length <= maxArgLen;
+    }
     return true;
   }
 
@@ -186,10 +196,16 @@ class BridgeProtocol {
     return false;
   }
 
+  /// 保留**完整相对路径**做同源比对：apps/dev-portal/index.html 与
+  /// 其它目录下的同名文件不会互相冒充；既有根目录页面行为不变。
   static String _base(String url) {
-    final String p = url.startsWith(UrlPolicy.localAssetPrefix)
+    String p = url.startsWith(UrlPolicy.localAssetPrefix)
         ? url.substring(UrlPolicy.localAssetPrefix.length)
         : url;
-    return p.contains('/') ? p.substring(p.lastIndexOf('/') + 1) : p;
+    final int q = p.indexOf('?');
+    if (q >= 0) p = p.substring(0, q);
+    final int h = p.indexOf('#');
+    if (h >= 0) p = p.substring(0, h);
+    return p;
   }
 }

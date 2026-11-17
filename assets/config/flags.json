@@ -9,5 +9,9 @@
   "scroll_compact": false,
   "sound": false,
   "haptics": true,
-  "daily_challenge": true
+  "daily_challenge": true,
+  "cloud_sync": false,
+  "dev_portal": true,
+  "devportal_connect": false,
+  "telemetry": false
 }

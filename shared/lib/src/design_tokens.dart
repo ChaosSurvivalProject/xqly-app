@@ -93,6 +93,74 @@ class DesignTokens {
   /// 正文最大阅读宽度，避免大屏被拉伸。
   static const double maxReadingWidth = 760.0;
 
+  // ---------------------------------------------------------------- 统一 UI 契约 v2
+  // 提示词 A 的四层：原始值 → 语义色 → 组件状态 → 平台映射。
+  // 这里只**新增**语义层与组件契约，不改动上面的原始值 / 语义色 / 模式映射，
+  // 保证既有 323 条用例与 12 步门禁零回归。三端只做映射，不在组件里硬编码色值。
+  static const Map<String, double> spaceScale = <String, double>{
+    '1': 4, '2': 8, '3': 12, '4': 16, '6': 24,
+    '8': 32, '12': 48, '16': 64, '24': 96,
+  };
+  static const Map<String, double> radiusScale = <String, double>{
+    'xs': 4, 'sm': 8, 'md': 12, 'lg': 20, 'pill': 999,
+  };
+  static const Map<String, double> typeScale = <String, double>{
+    'h1': 18, 'h2': 16, 'h3': 14, 'bodyL': 16, 'bodyM': 14, 'caption': 12,
+  };
+  static const Map<String, double> lineHeights = <String, double>{
+    'h1': 24, 'h2': 24, 'h3': 22, 'bodyL': 24, 'bodyM': 22, 'caption': 18,
+  };
+  static const Map<String, double> lineHeightRatios = <String, double>{
+    'tight': 1.125, 'normal': 1.25, 'relaxed': 1.5,
+  };
+  static const Map<String, int> motionScale = <String, int>{
+    'fast': 120, 'base': 200, 'slow': 300,
+  };
+  static const Map<String, int> breakpoints = <String, int>{
+    'narrowMin': 320, 'narrowMax': 519, 'phoneMin': 0, 'phoneMax': 599,
+    'foldableMin': 600, 'foldableMax': 1199, 'desktopMin': 1200,
+  };
+  /// 暗色用 1–3% 亮度 + 1dp 描边，不用厚重投影。
+  static const Map<String, double> elevation = <String, double>{
+    '0': 0, '1': 0.01, '2': 0.02, '3': 0.03,
+  };
+  /// 组件状态契约：三端必须同一套。loading 保持宽高且不可再点；
+  /// disabled 降对比并去阴影；pressed 用表面提亮而非纯透明度叠加。
+  static const Map<String, List<String>> componentStates = <String, List<String>>{
+    'button': <String>['idle', 'loading', 'pressed', 'disabled', 'focusVisible'],
+    'field': <String>['default', 'focused', 'filled', 'error', 'disabled'],
+    'card': <String>['rest', 'hover', 'pressed', 'selected'],
+  };
+  static const List<String> platforms = <String>['android', 'webview', 'windows'];
+
+  static Map<String, Object?> designContract() => <String, Object?>{
+        'schema': 2,
+        'layers': <String>['primitive', 'semantic', 'componentState', 'platform'],
+        'grid': spaceScale,
+        'gridColumns': <int>[8, 12],
+        'minTouchTarget': minTouchTarget,
+        'radius': radiusScale,
+        'type': typeScale,
+        'lineHeights': lineHeights,
+        'lineHeightRatios': lineHeightRatios,
+        'motion': motionScale,
+        'pageTransitionMaxMs': 300,
+        'reducedMotion': <String, Object?>{
+          'durationMs': 120, 'opacityOnly': true, 'noTranslation': true,
+        },
+        'breakpoints': breakpoints,
+        'elevation': elevation,
+        'elevationOutlineDp': 1,
+        'componentStates': componentStates,
+        'platforms': platforms,
+        'contrast': <String, Object?>{'normalTextAA': 4.5, 'largeTextAA': 3.0},
+        'feedback': <String, Object?>{
+          'placementAndroid': 'bottom-bar',
+          'placementWebView': 'top-safe-bar',
+          'dangerMs': 6000, 'normalMs': 4000, 'maxSimultaneous': 1,
+        },
+      };
+
   static Map<String, int> colors(XTheme theme, XMode mode) {
     final Map<String, int> base = theme == XTheme.dark ? _dark : _light;
     if (mode != XMode.contrast) return Map<String, int>.from(base);
@@ -159,6 +227,7 @@ class DesignTokens {
       'minTouchTarget': minTouchTarget,
       'desktopTouchTarget': desktopTouchTarget,
       'maxReadingWidth': maxReadingWidth,
+      'designContract': designContract(),
     };
   }
 
@@ -190,6 +259,28 @@ class DesignTokens {
     sb.writeln('  --xq-glass-blur:${glass(XMode.glass)['blur']}px;');
     sb.writeln('  --xq-touch-scale:1;');
     sb.writeln('  --xq-max-reading:${maxReadingWidth}px;');
+    // 统一 UI 契约 v2：8pt 网格 / 圆角 / 字号行高 / 动效 / 断点 / 高度 / 组件状态。
+    // 全部由真源生成，页面只引用变量，禁止写死色值与中间值。
+    for (final MapEntry<String, double> e in spaceScale.entries) {
+      sb.writeln('  --xq-space-${e.key}:${e.value}px;');
+    }
+    for (final MapEntry<String, double> e in radiusScale.entries) {
+      sb.writeln('  --xq-r-${e.key}:${e.value}px;');
+    }
+    for (final MapEntry<String, double> e in typeScale.entries) {
+      sb.writeln('  --xq-fs-${e.key}:${e.value}px;');
+      sb.writeln('  --xq-lh-${e.key}:${lineHeights[e.key]}px;');
+    }
+    for (final MapEntry<String, int> e in motionScale.entries) {
+      sb.writeln('  --xq-dur-${e.key}:${e.value}ms;');
+    }
+    for (final MapEntry<String, int> e in breakpoints.entries) {
+      sb.writeln('  --xq-bp-${e.key}:${e.value}px;');
+    }
+    for (final MapEntry<String, double> e in elevation.entries) {
+      sb.writeln('  --xq-elev-${e.key}:${e.value};');
+    }
+    sb.writeln('  --xq-outline:1px;');
     sb.writeln('}');
     for (final XTheme t in XTheme.values) {
       for (final XMode m in XMode.values) {
@@ -221,6 +312,10 @@ class DesignTokens {
     sb.writeln('@media (prefers-reduced-motion: reduce){');
     sb.writeln('  *{--xq-motion-short:0ms;--xq-motion-medium:0ms;');
     sb.writeln('    --xq-motion-long:0ms;--xq-motion-emphasis:0ms;}');
+    // 契约要求：降为 120ms 透明度、无位移；列表不位移动画、输入框不晃动。
+    sb.writeln('  *{transition-duration:120ms !important;');
+    sb.writeln('    transition-property:opacity !important;');
+    sb.writeln('    transform:none !important;animation:none !important;}');
     sb.writeln('}');
     return sb.toString();
   }

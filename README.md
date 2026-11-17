@@ -4,13 +4,29 @@
 
 **原生 Android**（Java + 系统 WebView）与 **原生 Windows**（Win32 窗口程序）双客户端，共用一套纯 Dart 业务核心。在线直连与离线镜像两种模式均可完整使用；内置「全站内容档案」与本地全文检索，离线时还有小游戏「方块合成」；支持平板 / 横屏 / 折叠屏自适应与可信自动更新。
 
-当前版本 **v2.1.1**（Android `versionCode=8` / Windows `2.1.1.0`）。
+当前版本 **v2.2.0**（Android `versionCode=9` / Windows `2.2.0.0`）。
 
 > 📦 直接到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载已正式签名的 Android APK，安装即用。
 
 > ✅ **关于 Windows 产物**：安装版（MSIX）与便携版（ZIP）由 [`.github/workflows/release.yml`](.github/workflows/release.yml) 在 `windows-latest`（Visual Studio Enterprise 2026）真实编译产出，随每个草稿 Release 一起发布；目前为**测试签名**（未配置组织代码签名证书），不伪装正式版。本仓库开发沙箱是 Linux，本机不产生 Windows 二进制，但 Win32 源码完整可审计、平台无关核心已编译测试。详见 [windows/README.md](windows/README.md)。
 
 ![界面预览](docs/界面预览.png)
+
+---
+
+## v2.2.0 更新重点（开发者平台模组 · 统一 UI 契约 · xqly-bridge/1）
+
+按「应用抽屉 → 应用首页 → 详情 → 模态」新增一个**应用类模组**，并扩展统一 UI 单源 token。
+详见 [发布说明](docs/RELEASE_NOTES_2.2.0.md)、[模组设计](docs/DEV_PORTAL_MODULE.md)、[设计系统](docs/DESIGN_SYSTEM.md)。
+
+- **新增 `dev-portal` 模组**：底部 Dock「开发」+ 侧边药丸「⌘ 开发」双入口；纳入 `OverlayController` 互斥浮层，返回键 / 首页逃生 / 页面关闭都能干净收敛。页面为 4 个纯本地资源，含连接管理、应用抽屉、流式会话占位、只读工作区、工具审批与权限矩阵。
+- **回退决策如实落地**：会话内无法取得上游许可证链、可复现构建与体积证据，故放弃内置执行引擎，做纯自研「受控远程门户 v1」。**不引入** Node / 模型 / AGPL / API Key / 预置服务器 / 第三方插件，不伪造连接成功。离线态明确写出「没有内容 / 为什么 / 下一步」。
+- **新增 `xqly-bridge/1`**：16 条方法的权限 / 超时 / 幂等 / 审批 / 网络约束，外层 `BridgeProtocol` + 内层 `BridgeV1` 双层校验；默认权限仅 6 项，凭据 / 网络 / 审批 / 导出 / 遥测 / 诊断一律不授予 → 越权 100% 拒绝。端点仅 WSS/SSE/HTTPS，私网与深链穿越全部拒绝，零密钥落盘、默认零遥测、日志统一脱敏。
+- **统一 UI 契约 v2**：`DesignTokens.designContract()` 定义四层 token、组件状态、断点、动效与三平台映射；生成器一次产出 5 份字节一致的产物，`--check` 接入门禁。前端 `app.css` 零硬编码色值，含焦点态与减弱动效。
+- **修复 5 处真实缺陷**：Deep Link 归一化折叠 scheme、私网拒绝原因不可达、`approveTool` 的 `scope`/`grant` 字段用反、Dart `redact` 的 raw 字符串与 `$1` 插值编译错误、宿主权限集合与 Dart/Java 不一致。
+- **测试合计 382 用例**（Dart 178 + JVM 136 + Node 19 + Node 15 + C++ 34），`build.sh` 12 步门禁全过；随包资源 **232 个文件 / 10.07 MB**（含 4 个 dev-portal 资源）。
+
+> 边界如实标注：dev-portal v1 **不提供**真实远程会话、工具执行、模型推理与凭据解锁；端点白名单默认空，界面显示「未配置」。改名与品牌边界见 [NAMING_CHECKLIST.md](docs/NAMING_CHECKLIST.md)。
 
 ---
 
@@ -87,14 +103,14 @@
 | 镜像静态资源 | 202 个文件 / 约 10.4 MB（主站 + `/wiki/` + `/admin/`） |
 | 页面正文 | 17 页 / 11,143 字 |
 | 接口数据快照 | 16 组 JSON |
-| 内置内容清单 | **228 个文件 / 10,531,971 bytes（10.04 MB）** |
+| 内置内容清单 | **232 个文件 / 10,560,308 bytes（10.07 MB）** |
 | 本地检索索引 | 13 条真实文档 |
-| `assets/` 实际文件 | 229（含 `MANIFEST.json` 自身，清单不纳入自己） |
-| Java 源码 | 32 个文件 / 5,909 行（含 17 个零 Android 依赖的纯逻辑类） |
-| Dart 源码 | 19 个 `.dart`（16 个共享模块 + 入口 + 生成器 + 测试） |
+| `assets/` 实际文件 | 233（含 `MANIFEST.json` 自身，清单不纳入自己） |
+| Java 源码 | 37 个文件（含 22 个零 Android 依赖的纯逻辑类） |
+| Dart 源码 | 24 个 `.dart`（21 个共享模块 + 入口 + 生成器 + 测试） |
 | C++ 源码 | 11 个 `.cpp` / `.h` |
-| 自动化测试 | **323 个用例**（Dart 152 + JVM 118 + Node 19 + C++ 34） |
-| Android APK | 6,665,650 bytes，正式签名 |
+| 自动化测试 | **382 个用例**（Dart 178 + JVM 136 + Node 19 + Node 15 + C++ 34） |
+| Android APK | 正式发布证书签名（`e1e8edc5…c21c05`），可覆盖升级 |
 
 ---
 
@@ -128,9 +144,9 @@ bash build.sh          # 12 步门禁，任一环节失败即中止
 | 0 | 校验 Manifest / MainActivity / build.sh / Dart identity 四处版本一致性与工具链 |
 | 1 | Dart 静态分析 + 设计令牌生成与 `--check` |
 | 2 | 生成并校验 `search-index.json` 与 `MANIFEST.json`（**必须先于测试**） |
-| 3 | Dart 共享核心测试（152） |
-| 4 | JVM 逻辑测试（104） |
-| 5 | Node 游戏规则引擎测试（19） |
+| 3 | Dart 共享核心测试（178） |
+| 4 | JVM 逻辑测试（136） |
+| 5 | Node 游戏规则引擎（19）+ dev-portal 前端桥（15） |
 | 6–9 | aapt2 编译/链接 → javac → d8 |
 | 10 | 组装 APK 并 zipalign |
 | 11 | 比对 APK 内 `MANIFEST.json` / `design-tokens.css` 与源码树字节一致 |
@@ -139,9 +155,10 @@ bash build.sh          # 12 步门禁，任一环节失败即中止
 单独跑测试：
 
 ```bash
-(cd shared && dart test/run_tests.dart ..)     # 152
-bash tests/run-tests.sh                        # 104
+(cd shared && dart test/run_tests.dart ..)     # 178
+bash tests/run-tests.sh                        # 136
 node tests/game-engine.test.js                 # 19
+node tests/dev-portal.test.js                  # 15
 cmake -S windows/runner/core -B /tmp/wincore && cmake --build /tmp/wincore -j2 && ctest --test-dir /tmp/wincore --output-on-failure   # 34
 python3 tools/gen_manifest.py --check
 python3 tools/gen_search_index.py --check
@@ -174,7 +191,7 @@ cmake --build windows/build --config Release
 
 ### 安装
 
-**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.1.1.apk`，点击安装；应用内也支持自动更新。
+**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.2.0.apk`，点击安装；应用内也支持自动更新。
 
 **方式二**：本地编译后 `adb install -r dist/星穹旅驿.apk`。
 
@@ -182,7 +199,7 @@ cmake --build windows/build --config Release
 
 ```bash
 sha256sum -c SHA256SUMS.txt
-apksigner verify --print-certs xqly-app-v2.1.1.apk | grep SHA-256
+apksigner verify --print-certs xqly-app-v2.2.0.apk | grep SHA-256
 # 期望: e1e8edc56e9700a27ab2cd4ba5f45fa0ba1bd9a88e4a261de7ef3684b3c21c05
 ```
 
@@ -204,10 +221,10 @@ python3 tools/gen_manifest.py      # 重建内容清单（内容未变化时保�
 ```bash
 export GH_TOKEN=<你的 Personal Access Token>
 bash scripts/publish.sh            # 推送源码（5 次重试 + 远端 HEAD 校验）
-python3 tools/gen_release_assets.py release/ 2.1.1   # 从真实产物生成摘要与 SBOM
-gh release create v2.1.1 release/* --repo ChaosSurvivalProject/xqly-app \
-  --title "星穹旅驿 2.1.1 · Windows + Android" \
-  --notes-file docs/RELEASE_NOTES_2.1.1.md --draft \
+python3 tools/gen_release_assets.py release/ 2.2.0   # 从真实产物生成摘要与 SBOM
+gh release create v2.2.0 release/* --repo ChaosSurvivalProject/xqly-app \
+  --title "星穹旅驿 2.2.0 · Windows + Android" \
+  --notes-file docs/RELEASE_NOTES_2.2.0.md --draft \
   --target "$(git rev-parse HEAD)"
 ```
 
@@ -236,17 +253,18 @@ OTA 主资产名硬约束为 `xqly-app-v<version>.apk`，中文名只是附加�
 ## 目录结构
 
 ```
-├── AndroidManifest.xml            # versionCode=8 / versionName=2.1.1
+├── AndroidManifest.xml            # versionCode=9 / versionName=2.2.0
 ├── build.sh                       # 零 Gradle 可重复构建（12 步门禁）
-├── src/cn/xqly/app/               # Android 原生 Java（27 文件，含 core/OverlayController）
+├── src/cn/xqly/app/               # Android 原生 Java（37 文件）
 │   ├── MainActivity.java / WebBridge.java / Updater.java / UpdateCenter.java
 │   ├── GlassDrawable.java / GlassDock.java / XFileProvider.java
-│   └── core/                      # 17 个零 Android 依赖的纯逻辑类（含 SyncEngine / OverlayController）
+│   └── core/                      # 22 个零 Android 依赖的纯逻辑类（含 SyncEngine / OverlayController / BridgeV1 / DevPortalState）
 ├── shared/                        # 纯 Dart 双平台共享核心（唯一业务真源）
-│   ├── lib/src/                   # 16 个模块，零第三方依赖
-│   ├── tool/gen_tokens.dart       # 设计令牌生成器（三份产物 + --check）
-│   ├── test/run_tests.dart        # 152 个零依赖测试
+│   ├── lib/src/                   # 21 个模块，零第三方依赖
+│   ├── tool/gen_tokens.dart       # 设计令牌生成器（5 份产物 + --check）
+│   ├── test/run_tests.dart        # 178 个零依赖测试
 │   └── design-tokens.json
+├── assets/apps/dev-portal/       # 开发者平台模组（4 个纯本地资源）
 ├── windows/                       # 原生 Windows 工程
 │   ├── runner/core/               # 平台无关 C++17（Linux 已编译 + 34 测试）
 │   ├── runner/win32/              # Win32 外壳源码（CI 编译）
