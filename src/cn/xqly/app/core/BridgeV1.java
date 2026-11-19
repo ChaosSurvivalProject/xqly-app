@@ -116,7 +116,47 @@ public final class BridgeV1 {
                 new String[]{"event", "props"}, new String[]{}, false, false);
         put(m, "xqly.error.report", "diagnostics", 3000, true,
                 new String[]{"code", "messageHash", "breadcrumbs"}, new String[]{}, false, false);
+        // ---- AI 工作台：对标 harness 交互的纯本地方法，零网络、零执行、零密钥 ----
+        put(m, "xqly.workbench.env", "public", 1000, true,
+                new String[]{}, new String[]{}, false, false);
+        put(m, "xqly.workbench.snapshot", "workbench", 1000, true,
+                new String[]{"freeMb"}, new String[]{}, false, false);
+        put(m, "xqly.workbench.session.list", "workbench", 1000, true,
+                new String[]{}, new String[]{}, false, false);
+        put(m, "xqly.workbench.session.create", "workbench", 1000, false,
+                new String[]{"id", "title"}, new String[]{"id", "title"}, false, false);
+        put(m, "xqly.workbench.session.append", "workbench", 1000, false,
+                new String[]{"id", "role", "text"}, new String[]{"id", "role", "text"}, false, false);
+        put(m, "xqly.workbench.session.remove", "workbench", 1000, false,
+                new String[]{"id"}, new String[]{"id"}, false, false);
+        put(m, "xqly.workbench.provider.list", "workbench", 1000, true,
+                new String[]{}, new String[]{}, false, false);
+        put(m, "xqly.workbench.provider.mark", "workbench", 1000, false,
+                new String[]{"id", "configured"}, new String[]{"id"}, false, false);
+        put(m, "xqly.workbench.plugin.list", "workbench", 1000, true,
+                new String[]{}, new String[]{}, false, false);
+        put(m, "xqly.workbench.plugin.register", "workbench", 1000, false,
+                new String[]{"id", "displayName", "source", "version"},
+                new String[]{"id", "displayName", "source", "version"}, false, false);
+        put(m, "xqly.workbench.plugin.toggle", "workbench", 1000, false,
+                new String[]{"id", "enabled"}, new String[]{"id", "enabled"}, false, false);
+        put(m, "xqly.workbench.dropzone.check", "workbench", 1000, true,
+                new String[]{"raw"}, new String[]{"raw"}, false, false);
+        put(m, "xqly.workbench.selfcheck", "workbench", 1000, true,
+                new String[]{}, new String[]{}, false, false);
+        put(m, "xqly.workbench.log.append", "workbench", 1000, false,
+                new String[]{"level", "code", "text"},
+                new String[]{"level", "code", "text"}, false, false);
+        put(m, "xqly.workbench.log.query", "workbench", 1000, true,
+                new String[]{"level", "keyword", "tail"}, new String[]{}, false, false);
         METHODS = Collections.unmodifiableMap(m);
+    }
+
+    /** 每个合法桥应用对应的作用域；未知 appId 返回 null。 */
+    public static String scopeFor(String appId) {
+        if (AppRegistry.DEV_PORTAL_ID.equals(appId)) return "devportal:*";
+        if (AppRegistry.AI_WORKBENCH_ID.equals(appId)) return "workbench:*";
+        return null;
     }
 
     private static void put(Map<String, MethodSpec> m, String name, String perm,
@@ -129,6 +169,11 @@ public final class BridgeV1 {
     private static final Pattern ENDPOINT_ID = Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
     private static final Pattern TOOL_ID = Pattern.compile("^[A-Za-z0-9_.-]{1,64}$");
     private static final Pattern HASH64 = Pattern.compile("^[0-9a-f]{64}$");
+    private static final Pattern ID48 = Pattern.compile("^[A-Za-z0-9_-]{1,48}$");
+    private static final Pattern PLUGIN_ID = Pattern.compile("^[A-Za-z0-9]([A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$");
+    private static final Pattern VERSION_PATTERN = Pattern.compile("^\\d{1,4}\\.\\d{1,4}\\.\\d{1,4}$");
+    private static final Set<String> WB_ROLES = new HashSet<String>(
+            Arrays.asList("user", "draft", "note"));
     private static final Set<String> LEVELS = new HashSet<String>(
             Arrays.asList("info", "success", "warning", "error"));
     private static final Set<String> GRANTS = new HashSet<String>(
@@ -146,8 +191,9 @@ public final class BridgeV1 {
 
         if (!VERSION.equals(MiniJson.str(m, "bridge", "")))
             return CallResult.bad(Reject.BAD_VERSION);
-        if (!AppRegistry.DEV_PORTAL_ID.equals(MiniJson.str(m, "appId", ""))
-                || !AppRegistry.scopeAllows(AppRegistry.DEV_PORTAL_ID, "devportal:*"))
+        String appId = MiniJson.str(m, "appId", "");
+        String scope = scopeFor(appId);
+        if (scope == null || !AppRegistry.scopeAllows(appId, scope))
             return CallResult.bad(Reject.FOREIGN_APP);
 
         String method = MiniJson.str(m, "method", "");
@@ -252,6 +298,73 @@ public final class BridgeV1 {
             Object n = p.get("suggestedName");
             if (!(n instanceof String) || ((String) n).length() > 96
                     || ((String) n).contains("/") || ((String) n).contains("\\")) return false;
+        }
+        // ---- AI 工作台方法级 schema ----
+        if (spec.name.equals("xqly.workbench.snapshot") && p.containsKey("freeMb")) {
+            Object f = p.get("freeMb");
+            if (!(f instanceof Number)) return false;
+            double v = ((Number) f).doubleValue();
+            if (v < 0 || v > 1024L * 1024L) return false;
+        }
+        if (spec.name.equals("xqly.workbench.session.create")) {
+            Object i = p.get("id"), t = p.get("title");
+            return i instanceof String && ID48.matcher((String) i).matches()
+                    && t instanceof String && !((String) t).isEmpty()
+                    && ((String) t).length() <= 80;
+        }
+        if (spec.name.equals("xqly.workbench.session.append")) {
+            Object i = p.get("id"), role = p.get("role"), text = p.get("text");
+            return i instanceof String && ID48.matcher((String) i).matches()
+                    && role instanceof String && WB_ROLES.contains(role)
+                    && text instanceof String && !((String) text).isEmpty()
+                    && ((String) text).length() <= 2048;
+        }
+        if (spec.name.equals("xqly.workbench.session.remove")) {
+            Object i = p.get("id");
+            return i instanceof String && ID48.matcher((String) i).matches();
+        }
+        if (spec.name.equals("xqly.workbench.provider.mark")) {
+            Object i = p.get("id");
+            if (!(i instanceof String) || !WorkbenchProvider.validId((String) i)) return false;
+            if (p.containsKey("configured") && !(p.get("configured") instanceof Boolean)) return false;
+            return true;
+        }
+        if (spec.name.equals("xqly.workbench.plugin.register")) {
+            Object i = p.get("id"), s = p.get("source"), v = p.get("version");
+            return i instanceof String && PLUGIN_ID.matcher((String) i).matches()
+                    && s instanceof String && WorkbenchPlugin.SOURCES.contains(s)
+                    && v instanceof String && VERSION_PATTERN.matcher((String) v).matches();
+        }
+        if (spec.name.equals("xqly.workbench.plugin.toggle")) {
+            Object i = p.get("id"), e = p.get("enabled");
+            return i instanceof String && PLUGIN_ID.matcher((String) i).matches()
+                    && e instanceof Boolean;
+        }
+        if (spec.name.equals("xqly.workbench.dropzone.check")) {
+            Object raw = p.get("raw");
+            return raw instanceof String && !((String) raw).isEmpty()
+                    && ((String) raw).length() <= 192;
+        }
+        if (spec.name.equals("xqly.workbench.log.append")) {
+            Object lv = p.get("level"), code = p.get("code"), text = p.get("text");
+            return lv instanceof String && LEVELS.contains(lv)
+                    && code instanceof String && ((String) code).length() <= 48
+                    && text instanceof String && !((String) text).isEmpty()
+                    && ((String) text).length() <= 2048;
+        }
+        if (spec.name.equals("xqly.workbench.log.query")) {
+            if (p.containsKey("level")) {
+                Object lv = p.get("level");
+                if (!(lv instanceof String) || !LEVELS.contains(lv)) return false;
+            }
+            if (p.containsKey("keyword") && !(p.get("keyword") instanceof String)) return false;
+            if (p.containsKey("tail")) {
+                Object t = p.get("tail");
+                if (!(t instanceof Number)) return false;
+                double v = ((Number) t).doubleValue();
+                if (v < 1 || v > 256) return false;
+            }
+            return true;
         }
         return true;
     }

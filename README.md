@@ -4,7 +4,7 @@
 
 **原生 Android**（Java + 系统 WebView）与 **原生 Windows**（Win32 窗口程序）双客户端，共用一套纯 Dart 业务核心。在线直连与离线镜像两种模式均可完整使用；内置「全站内容档案」与本地全文检索，离线时还有小游戏「方块合成」；支持平板 / 横屏 / 折叠屏自适应与可信自动更新。
 
-当前版本 **v2.2.0**（Android `versionCode=9` / Windows `2.2.0.0`）。
+当前版本 **v2.3.0**（Android `versionCode=10` / Windows `2.3.0.0`）。
 
 > 📦 直接到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载已正式签名的 Android APK，安装即用。
 
@@ -13,6 +13,22 @@
 ![界面预览](docs/界面预览.png)
 
 ---
+
+## v2.3.0 更新重点（AI 工作台 · 零依赖功能对标）
+
+按用户选定方向，**以 xqly-app 现有零依赖架构重写 deepseek-harness-android 的交互**，
+**不引入其 AGPL/GPL 运行时代码**。对标范围与不做项见 [AI 工作台说明](docs/AI_WORKBENCH_MODULE.md)。
+
+![AI 工作台演示（真实前端代码在 Chromium 手机视口渲染，非 Android 真机截图）](docs/AI工作台演示.png)
+
+- **新增 `ai-workbench` 应用类模组**：纳入 `OverlayController` 互斥浮层、Dock「工作台」+ 侧栏「✧ 工作台」双入口、独立 Web 存储分区与 `workbench:*` 桥作用域。
+- **对标六大交互**：本地会话（草稿/笔记，非真实 AI 回复）、模型供应商目录（9 模板，只登记布尔配置态、**零密钥接收与落盘**）、插件清单（启停/更新/回滚状态机、**不加载第三方代码**）、投递区路径校验（工作区约束 + 穿越/编码绕过拒绝）、18 项环境自检、诊断日志（统一脱敏 + 尾部窗口 + 错误判读）。
+- **零依赖硬约束**：不内置 PRoot / Ubuntu / Node / Landlock 运行时，不发起模型请求、不执行任何工具、不使用 Shizuku/无障碍、默认零遥测；运行时项在自检中如实标注「未提供」。
+- **桥协议扩展**：新增 15 条 `xqly.workbench.*` 本地方法（总数 31 条），appId 作用域按注册表动态匹配；越权/未知方法 100% 拒绝。
+- **真实缺陷修复**：Dart `workbenchRedact` 用了不受支持的内联 `(?i)` 标志导致运行时崩溃、裸 `key=value` 与 `sk-` 前缀密钥脱敏缺口。
+- **测试合计 409 用例**（Dart 190 + JVM 144 + Node 19 + Node 15 + Node 7 + C++ 34），`build.sh` 12 步门禁全过；随包资源 **236 个文件 / 10.10 MB**。
+
+> 边界如实标注：本模组是**界面与本地数据管理的功能对标**，不是 harness 本体的移植，不提供真实模型推理与本地 Linux 环境。原项目许可证链见 [THIRD_PARTY.md](docs/THIRD_PARTY.md)。
 
 ## v2.2.0 更新重点（开发者平台模组 · 统一 UI 契约 · xqly-bridge/1）
 
@@ -111,7 +127,7 @@
 | Java 源码 | 37 个文件（含 22 个零 Android 依赖的纯逻辑类） |
 | Dart 源码 | 24 个 `.dart`（21 个共享模块 + 入口 + 生成器 + 测试） |
 | C++ 源码 | 11 个 `.cpp` / `.h` |
-| 自动化测试 | **382 个用例**（Dart 178 + JVM 136 + Node 19 + Node 15 + C++ 34） |
+| 自动化测试 | **409 个用例**（Dart 190 + JVM 144 + Node 19 + Node 15 + Node 7 + C++ 34） |
 | Android APK | 正式发布证书签名（`e1e8edc5…c21c05`），可覆盖升级 |
 
 ---
@@ -193,7 +209,7 @@ cmake --build windows/build --config Release
 
 ### 安装
 
-**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.2.0.apk`，点击安装；应用内也支持自动更新。
+**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.3.0.apk`，点击安装；应用内也支持自动更新。
 
 **方式二**：本地编译后 `adb install -r dist/星穹旅驿.apk`。
 
@@ -201,7 +217,7 @@ cmake --build windows/build --config Release
 
 ```bash
 sha256sum -c SHA256SUMS.txt
-apksigner verify --print-certs xqly-app-v2.2.0.apk | grep SHA-256
+apksigner verify --print-certs xqly-app-v2.3.0.apk | grep SHA-256
 # 期望: e1e8edc56e9700a27ab2cd4ba5f45fa0ba1bd9a88e4a261de7ef3684b3c21c05
 ```
 
@@ -224,7 +240,7 @@ python3 tools/gen_manifest.py      # 重建内容清单（内容未变化时保�
 export GH_TOKEN=<你的 Personal Access Token>
 bash scripts/publish.sh            # 推送源码（5 次重试 + 远端 HEAD 校验）
 python3 tools/gen_release_assets.py release/ 2.2.0   # 从真实产物生成摘要与 SBOM
-gh release create v2.2.0 release/* --repo ChaosSurvivalProject/xqly-app \
+gh release create v2.3.0 release/* --repo ChaosSurvivalProject/xqly-app \
   --title "星穹旅驿 2.2.0 · Windows + Android" \
   --notes-file docs/RELEASE_NOTES_2.2.0.md --draft \
   --target "$(git rev-parse HEAD)"
@@ -255,7 +271,7 @@ OTA 主资产名硬约束为 `xqly-app-v<version>.apk`，中文名只是附加�
 ## 目录结构
 
 ```
-├── AndroidManifest.xml            # versionCode=9 / versionName=2.2.0
+├── AndroidManifest.xml            # versionCode=10 / versionName=2.3.0
 ├── build.sh                       # 零 Gradle 可重复构建（12 步门禁）
 ├── src/cn/xqly/app/               # Android 原生 Java（37 文件）
 │   ├── MainActivity.java / WebBridge.java / Updater.java / UpdateCenter.java

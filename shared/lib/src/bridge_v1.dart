@@ -1,6 +1,8 @@
 import 'apps.dart';
 import 'endpoint_policy.dart';
 import 'foundation.dart';
+import 'workbench_plugin.dart';
+import 'workbench_provider.dart';
 
 /// xqly-bridge/1 十六条方法的规格。每条方法必须有 schema、超时、幂等性与权限标签。
 class MethodSpec {
@@ -130,7 +132,59 @@ class BridgeV1 {
         allowedKeys: <String>{'event', 'props'}),
     'xqly.error.report': MethodSpec('xqly.error.report', 'diagnostics', 3000, true,
         allowedKeys: <String>{'code', 'messageHash', 'breadcrumbs'}),
+    // ---- AI 工作台：对标 harness 交互的纯本地方法，零网络、零执行、零密钥 ----
+    'xqly.workbench.env': MethodSpec(
+        'xqly.workbench.env', 'public', 1000, true),
+    'xqly.workbench.snapshot': MethodSpec(
+        'xqly.workbench.snapshot', 'workbench', 1000, true,
+        allowedKeys: <String>{'freeMb'}),
+    'xqly.workbench.session.list': MethodSpec(
+        'xqly.workbench.session.list', 'workbench', 1000, true),
+    'xqly.workbench.session.create': MethodSpec(
+        'xqly.workbench.session.create', 'workbench', 1000, false,
+        allowedKeys: <String>{'id', 'title'}, requiredKeys: <String>{'id', 'title'}),
+    'xqly.workbench.session.append': MethodSpec(
+        'xqly.workbench.session.append', 'workbench', 1000, false,
+        allowedKeys: <String>{'id', 'role', 'text'},
+        requiredKeys: <String>{'id', 'role', 'text'}),
+    'xqly.workbench.session.remove': MethodSpec(
+        'xqly.workbench.session.remove', 'workbench', 1000, false,
+        allowedKeys: <String>{'id'}, requiredKeys: <String>{'id'}),
+    'xqly.workbench.provider.list': MethodSpec(
+        'xqly.workbench.provider.list', 'workbench', 1000, true),
+    // 只登记「已配置」布尔状态；allowedKeys 中绝无密钥/令牌字段。
+    'xqly.workbench.provider.mark': MethodSpec(
+        'xqly.workbench.provider.mark', 'workbench', 1000, false,
+        allowedKeys: <String>{'id', 'configured'}, requiredKeys: <String>{'id'}),
+    'xqly.workbench.plugin.list': MethodSpec(
+        'xqly.workbench.plugin.list', 'workbench', 1000, true),
+    'xqly.workbench.plugin.register': MethodSpec(
+        'xqly.workbench.plugin.register', 'workbench', 1000, false,
+        allowedKeys: <String>{'id', 'displayName', 'source', 'version'},
+        requiredKeys: <String>{'id', 'displayName', 'source', 'version'}),
+    'xqly.workbench.plugin.toggle': MethodSpec(
+        'xqly.workbench.plugin.toggle', 'workbench', 1000, false,
+        allowedKeys: <String>{'id', 'enabled'}, requiredKeys: <String>{'id', 'enabled'}),
+    'xqly.workbench.dropzone.check': MethodSpec(
+        'xqly.workbench.dropzone.check', 'workbench', 1000, true,
+        allowedKeys: <String>{'raw'}, requiredKeys: <String>{'raw'}),
+    'xqly.workbench.selfcheck': MethodSpec(
+        'xqly.workbench.selfcheck', 'workbench', 1000, true),
+    'xqly.workbench.log.append': MethodSpec(
+        'xqly.workbench.log.append', 'workbench', 1000, false,
+        allowedKeys: <String>{'level', 'code', 'text'},
+        requiredKeys: <String>{'level', 'code', 'text'}),
+    'xqly.workbench.log.query': MethodSpec(
+        'xqly.workbench.log.query', 'workbench', 1000, true,
+        allowedKeys: <String>{'level', 'keyword', 'tail'}),
   };
+
+  /// 每个合法桥应用对应的作用域；未知 appId 返回 null。
+  static String? scopeFor(String appId) {
+    if (appId == AppRegistry.devPortalId) return 'devportal:*';
+    if (appId == AppRegistry.aiWorkbenchId) return 'workbench:*';
+    return null;
+  }
 
   /// 任何方法都不允许携带的键片段（小写包含匹配）。
   static const Set<String> forbiddenFragments = <String>{
@@ -166,9 +220,10 @@ class BridgeV1 {
     if (Json.str(m, 'bridge', '') != version) {
       return const CallResult.bad(RejectV1.badVersion);
     }
-    // 越界 appId：桥作用域仅 devportal:*，其它应用一律拒绝。
-    if (Json.str(m, 'appId', '') != AppRegistry.devPortalId ||
-        !AppRegistry.scopeAllows(AppRegistry.devPortalId, 'devportal:*')) {
+    // 越界 appId：只接受已登记且作用域匹配的应用（dev-portal / ai-workbench）。
+    final String appId = Json.str(m, 'appId', '');
+    final String? scope = scopeFor(appId);
+    if (scope == null || !AppRegistry.scopeAllows(appId, scope)) {
       return const CallResult.bad(RejectV1.foreignApp);
     }
 
@@ -300,6 +355,73 @@ class BridgeV1 {
           return false;
         }
       }
+    }
+    // ---- AI 工作台方法级 schema ----
+    if (spec.name == 'xqly.workbench.snapshot' && p.containsKey('freeMb')) {
+      final Object? f = p['freeMb'];
+      if (f is! num || f < 0 || f > 1024 * 1024) return false;
+    }
+    if (spec.name == 'xqly.workbench.session.create') {
+      final Object? i = p['id'];
+      final Object? t = p['title'];
+      return i is String && RegExp(r'^[A-Za-z0-9_-]{1,48}$').hasMatch(i) &&
+          t is String && t.isNotEmpty && t.length <= 80;
+    }
+    if (spec.name == 'xqly.workbench.session.append') {
+      final Object? i = p['id'];
+      final Object? role = p['role'];
+      final Object? text = p['text'];
+      return i is String && RegExp(r'^[A-Za-z0-9_-]{1,48}$').hasMatch(i) &&
+          role is String && const <String>['user', 'draft', 'note'].contains(role) &&
+          text is String && text.isNotEmpty && text.length <= 2048;
+    }
+    if (spec.name == 'xqly.workbench.session.remove') {
+      final Object? i = p['id'];
+      return i is String && RegExp(r'^[A-Za-z0-9_-]{1,48}$').hasMatch(i);
+    }
+    if (spec.name == 'xqly.workbench.provider.mark') {
+      final Object? i = p['id'];
+      if (i is! String || !WorkbenchProvider.validId(i)) return false;
+      if (p.containsKey('configured') && p['configured'] is! bool) return false;
+      return true;
+    }
+    if (spec.name == 'xqly.workbench.plugin.register') {
+      final Object? i = p['id'];
+      final Object? s = p['source'];
+      final Object? v = p['version'];
+      return i is String && RegExp(r'^[A-Za-z0-9]([A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$').hasMatch(i) &&
+          s is String && WorkbenchPlugin.sources.contains(s) &&
+          v is String && RegExp(r'^\d{1,4}\.\d{1,4}\.\d{1,4}$').hasMatch(v);
+    }
+    if (spec.name == 'xqly.workbench.plugin.toggle') {
+      final Object? i = p['id'];
+      return i is String && RegExp(r'^[A-Za-z0-9]([A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$').hasMatch(i) &&
+          p['enabled'] is bool;
+    }
+    if (spec.name == 'xqly.workbench.dropzone.check') {
+      final Object? raw = p['raw'];
+      return raw is String && raw.isNotEmpty && raw.length <= 192;
+    }
+    if (spec.name == 'xqly.workbench.log.append') {
+      final Object? lv = p['level'];
+      final Object? code = p['code'];
+      final Object? text = p['text'];
+      return lv is String && const <String>['info', 'success', 'warning', 'error'].contains(lv) &&
+          code is String && code.length <= 48 &&
+          text is String && text.isNotEmpty && text.length <= 2048;
+    }
+    if (spec.name == 'xqly.workbench.log.query') {
+      if (p.containsKey('level')) {
+        final Object? lv = p['level'];
+        if (lv is! String ||
+            !const <String>['info', 'success', 'warning', 'error'].contains(lv)) return false;
+      }
+      if (p.containsKey('keyword') && p['keyword'] is! String) return false;
+      if (p.containsKey('tail')) {
+        final Object? t = p['tail'];
+        if (t is! num || t < 1 || t > 256) return false;
+      }
+      return true;
     }
     return true;
   }

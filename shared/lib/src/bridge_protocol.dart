@@ -67,6 +67,7 @@ class BridgeProtocol {
     // dev-portal 应用作用域：只携带一个 envelope 字符串，细粒度校验由
     // BridgeV1（xqly-bridge/1）完成；这里不新增 JS 接口，复用唯一入口。
     'devportal',
+    'workbench',
   };
 
   static const Set<String> writeTypes = <String>{
@@ -169,7 +170,7 @@ class BridgeProtocol {
           const <String>['newTab', 'closeTab', 'nextTab', 'prevTab', 'restoreTab',
             'focusSearch', 'openSettings', 'togglePause'].contains(c);
     }
-    if (type == 'devportal') {
+    if (type == 'devportal' || type == 'workbench') {
       // envelope 必须是单个有界字符串；内容与权限由 BridgeV1 逐条校验，
       // 未在白名单内的方法 / 越界 appId / 危险键一律在那一层被拒绝。
       if (a.length != 1) return false;

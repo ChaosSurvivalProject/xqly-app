@@ -70,6 +70,7 @@ class AppRegistry {
   static const String routeScheme = 'xqly-app';
   static const String deepLinkScheme = 'xqly';
   static const String devPortalId = 'dev-portal';
+  static const String aiWorkbenchId = 'ai-workbench';
 
   static const List<AppSpec> apps = <AppSpec>[
     AppSpec(
@@ -107,6 +108,18 @@ class AppRegistry {
       maxNavDepth: AppNav.modal,
       communityLabel: '社区非官方 · 自研远程门户',
       iconLabel: '开发',
+    ),
+    AppSpec(
+      id: aiWorkbenchId,
+      displayName: '星穹旅驿 AI 工作台',
+      subtitle: '本地交互对标 · 不内置模型与运行时',
+      route: 'xqly-app://apps/ai-workbench',
+      bridgeScope: 'workbench:*',
+      storagePartition: 'ai-workbench',
+      offline: OfflineCapability.full,
+      maxNavDepth: AppNav.detail,
+      communityLabel: '社区非官方 · 零依赖功能对标',
+      iconLabel: '工作台',
     ),
   ];
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": 1794923018,
+  "version": 1795088635,
   "files": [
     {
       "p": "archive.html",
@@ -41,6 +41,26 @@
       "p": "library.html",
       "sha256": "898e1aab80730eaa548626a9f1affc5790e4d7e275c0272d24159830fa1bc739",
       "size": 11424
+    },
+    {
+      "p": "apps/ai-workbench/app.css",
+      "sha256": "59c28625b5252c7887fbd4c8dc44b2c9c4e731e0aa8fcd2ada909a56e5723004",
+      "size": 5283
+    },
+    {
+      "p": "apps/ai-workbench/app.js",
+      "sha256": "c5ffa0415a5dd42563a376a80ab145e838877a5b7d1fc73722f4c1f4f1b24f12",
+      "size": 9148
+    },
+    {
+      "p": "apps/ai-workbench/bridge-v1.js",
+      "sha256": "70e3219503b33401264d97e53d15db297e9440f924d30a84b4400453326ca05f",
+      "size": 4480
+    },
+    {
+      "p": "apps/ai-workbench/index.html",
+      "sha256": "a59b479b3770005eb4019a20f31c5e5ed27abc9ac0428fbaa968d38ed166ca98",
+      "size": 6912
     },
     {
       "p": "apps/dev-portal/app.css",

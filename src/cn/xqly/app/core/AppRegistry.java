@@ -43,6 +43,7 @@ public final class AppRegistry {
     public static final String ROUTE_SCHEME = "xqly-app";
     public static final String DEEP_LINK_SCHEME = "xqly";
     public static final String DEV_PORTAL_ID = "dev-portal";
+    public static final String AI_WORKBENCH_ID = "ai-workbench";
 
     public static final List<AppSpec> APPS = Collections.unmodifiableList(
             Arrays.asList(
@@ -54,7 +55,10 @@ public final class AppRegistry {
                             Offline.FULL, NAV_DETAIL, "", "游戏"),
                     new AppSpec(DEV_PORTAL_ID, "星穹旅驿开发者平台", "开发者工具·远程门户",
                             "xqly-app://apps/dev-portal", "devportal:*", "dev-portal",
-                            Offline.READ_ONLY, NAV_MODAL, "社区非官方 · 自研远程门户", "开发")
+                            Offline.READ_ONLY, NAV_MODAL, "社区非官方 · 自研远程门户", "开发"),
+                    new AppSpec(AI_WORKBENCH_ID, "星穹旅驿 AI 工作台", "本地交互对标 · 不内置模型与运行时",
+                            "xqly-app://apps/ai-workbench", "workbench:*", "ai-workbench",
+                            Offline.FULL, NAV_DETAIL, "社区非官方 · 零依赖功能对标", "工作台")
             ));
 
     public static AppSpec byId(String id) {

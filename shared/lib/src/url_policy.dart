@@ -28,6 +28,9 @@ class UrlPolicy {
     'apps/dev-portal/app.css',
     'apps/dev-portal/app.js',
     'apps/dev-portal/bridge-v1.js',
+    'apps/ai-workbench/app.css',
+    'apps/ai-workbench/app.js',
+    'apps/ai-workbench/bridge-v1.js',
   ];
 
   static const List<String> localPages = <String>[
@@ -35,10 +38,12 @@ class UrlPolicy {
     'game.html',
     'library.html',
     'apps/dev-portal/index.html',
+    'apps/ai-workbench/index.html',
   ];
 
   /// 开发者平台本地页面（单一 WebView 池内的一个应用路由，不是新 Activity）。
   static const String devPortalPage = 'apps/dev-portal/index.html';
+  static const String workbenchPage = 'apps/ai-workbench/index.html';
 
   static UrlKind classify(String? raw) {
     if (raw == null || raw.isEmpty || raw.length > 4096) {

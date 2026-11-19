@@ -38,6 +38,7 @@ public final class BridgeProtocol {
         s.add("gameSave");       // 游戏存档写入（本机用户命名空间）
         s.add("gameLoad");       // 游戏存档读取
         s.add("devportal");      // 开发者平台作用域：只带一个 envelope，细校验交给 BridgeV1
+        s.add("workbench");      // AI 工作台作用域：只带一个 envelope，细校验交给 BridgeV1
         TYPES = Collections.unmodifiableSet(s);
     }
 
@@ -124,7 +125,7 @@ public final class BridgeProtocol {
         }
         // dev-portal 只接受单个有界 envelope 字符串；内容、权限、超时、
         // 幂等与危险键由 BridgeV1（xqly-bridge/1）逐条校验，不在此放宽。
-        if ("devportal".equals(type)) {
+        if ("devportal".equals(type) || "workbench".equals(type)) {
             if (args.size() != 1) return bad(Reject.BAD_ARGS);
             Object e = args.get("envelope");
             if (!(e instanceof String) || ((String) e).isEmpty()

@@ -30,7 +30,8 @@ public class GlassDock extends LinearLayout {
 
     private static final String[][] ITEMS = {
             {"/", "首页"}, {"/faction-beta", "阵营"}, {"/forum", "社区"},
-            {"/team", "团队"}, {"__ARCHIVE__", "档案"}, {"__DEV_PORTAL__", "开发"}
+            {"/team", "团队"}, {"__ARCHIVE__", "档案"}, {"__DEV_PORTAL__", "开发"},
+            {"__WORKBENCH__", "工作台"}
     };
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;

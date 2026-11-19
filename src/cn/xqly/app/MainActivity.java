@@ -66,6 +66,11 @@ import static cn.xqly.app.core.OverlayController.Layer;
 import cn.xqly.app.core.UrlPolicy;
 import cn.xqly.app.core.UserData;
 import cn.xqly.app.core.UserPrefs;
+import cn.xqly.app.core.WorkbenchChat;
+import cn.xqly.app.core.WorkbenchDropzone;
+import cn.xqly.app.core.WorkbenchLog;
+import cn.xqly.app.core.WorkbenchSelfCheck;
+import cn.xqly.app.core.WorkbenchState;
 import cn.xqly.app.ui.LibraryView;
 
 /** 星穹旅驿 · 星穹玻璃设计系统客户端（v2.0.0 安全加固版） */
@@ -76,18 +81,18 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
 
-    public static final String VERSION_NAME = "2.2.0";
-    public static final int VERSION_CODE = 9;
+    public static final String VERSION_NAME = "2.3.0";
+    public static final int VERSION_CODE = 10;
 
     private FrameLayout root;
-    private WebView web, archiveWeb, gameWeb, devPortalWeb;
+    private WebView web, archiveWeb, gameWeb, devPortalWeb, workbenchWeb;
     private GlassDock dock;
     private GlassDrawable pillGlass;
     private View sidePill;
     private TextView modeLabel, pillPage;
     private View statusDot, progressFill, progressTrack;
     private FrameLayout archiveOverlay, gameOverlay, libraryOverlay, devPortalOverlay,
-            splash, fullscreenContainer;
+            workbenchOverlay, splash, fullscreenContainer;
     private StateOverlay stateOverlay;
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
@@ -101,6 +106,8 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private final OverlayController overlays = new OverlayController();
     /** dev-portal v1：纯自研远程门户状态机；零密钥落盘、默认零遥测、v1 不执行第三方插件。 */
     private final DevPortalState devPortal = new DevPortalState();
+    /** AI 工作台：本地交互对标，零运行时、零密钥、零网络、零执行。 */
+    private final WorkbenchState workbench = new WorkbenchState();
     /** xqly-bridge/1 幂等 id 去重与按方法限流（仅本会话内存态，不落盘）。 */
     private final Set<String> v1SeenIds = Collections.synchronizedSet(new HashSet<String>());
     private final Map<String, Long> v1LastCallAt = Collections.synchronizedMap(new HashMap<String, Long>());
@@ -110,6 +117,10 @@ public class MainActivity extends Activity implements WebBridge.Host {
      * telemetry:optional、diagnostics —— 零密钥落盘、默认零遥测、v1 不执行工具，越权 100% 拒绝。
      */
     private static final Set<String> V1_PERMISSIONS = BridgeV1.DEFAULT_PERMISSIONS;
+    /** AI 工作台权限：默认能力 + workbench 作用域；不含 network/credential/approval/telemetry。 */
+    private static final Set<String> WORKBENCH_PERMISSIONS = Collections.unmodifiableSet(
+            new HashSet<String>(java.util.Arrays.asList(
+                    "public", "ui", "nav", "link", "update", "clipboard", "workbench")));
     /** 内置浮层页面延迟加载：只在首次真正打开时才 loadUrl，避免启动时 3 个 WebView 并发渲染。 */
     private final Map<Layer, String> pendingPages = new HashMap<>();
     private Updater updater;
@@ -198,6 +209,9 @@ public class MainActivity extends Activity implements WebBridge.Host {
         // 不与主站 / 资料库 / 游戏叠加，返回键与「✦ 首页」都能干净关闭。
         devPortalOverlay = buildLocalOverlay(UrlPolicy.DEV_PORTAL_PAGE, Layer.DEV_PORTAL);
         root.addView(devPortalOverlay, new FrameLayout.LayoutParams(-1, -1));
+        // AI 工作台：单一 WebView 池内的本地应用路由，纳入 OverlayController 互斥。
+        workbenchOverlay = buildLocalOverlay(UrlPolicy.WORKBENCH_PAGE, Layer.AI_WORKBENCH);
+        root.addView(workbenchOverlay, new FrameLayout.LayoutParams(-1, -1));
         splash = buildSplash();
         root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
         // 兜底：无论页面是否 onPageFinished（离线镜像加载失败 / 超时 / 证书错误），
@@ -401,6 +415,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         pill.addView(pillButton("▤", "资料", DUSK, v -> openLibrary()));
         pill.addView(pillButton("◈", "游戏", DUSK, v -> openGame()));
         pill.addView(pillButton("⌘", "开发", DUSK, v -> openDevPortal()));
+        pill.addView(pillButton("✧", "工作台", DUSK, v -> openWorkbench()));
         pill.addView(pillButton("↻", "刷新", DUSK, v -> reloadCurrent()));
         pill.addView(pillButton("⇄", "换边", DUSK, v -> switchSide()));
         pill.addView(pillButton("⇧", "更新", DUSK, v -> {
@@ -861,6 +876,128 @@ public class MainActivity extends Activity implements WebBridge.Host {
         portalReply(MiniJson.stringify(resp));
     }
 
+    /** AI 工作台应用作用域桥：只走 BridgeV1 白名单方法，零网络/执行/密钥。 */
+    @Override public void onWorkbench(String envelope, String id) {
+        long now = System.currentTimeMillis();
+        // workbench 权限集合同样来自单一真源：DEFAULT_PERMISSIONS + workbench。
+        // 工作台不配置任何网络端点：传空白名单，网络类方法天然被拒。
+        BridgeV1.CallResult r = BridgeV1.validate(envelope, WORKBENCH_PERMISSIONS,
+                v1SeenIds, now, v1LastCallAt, !offline, false, false,
+                Collections.<String>emptySet());
+        Map<String, Object> resp = new HashMap<String, Object>();
+        resp.put("bridge", BridgeV1.VERSION);
+        resp.put("appId", WorkbenchState.APP_ID);
+        resp.put("id", r.id == null || r.id.isEmpty() ? (id == null ? "" : id) : r.id);
+        if (!r.ok) {
+            resp.put("ok", false);
+            resp.put("error", r.reason());
+            workbenchReply(MiniJson.stringify(resp));
+            return;
+        }
+        resp.put("ok", true);
+        resp.put("method", r.method);
+        Object result = dispatchWorkbench(r, now);
+        if (result != null) resp.put("result", result);
+        workbenchReply(MiniJson.stringify(resp));
+    }
+
+    /** 只回投到当前可见的 AI 工作台 WebView。 */
+    private void workbenchReply(String json) {
+        if (workbenchWeb == null || overlays.current() != Layer.AI_WORKBENCH) return;
+        final String safe = BridgeV1.responseSafe(json) ? json
+                : "{\"bridge\":\"xqly-bridge/1\",\"ok\":false,\"error\":\"RESPONSE_BLOCKED\"}";
+        try {
+            workbenchWeb.evaluateJavascript(
+                    "window.XQApp&&window.XQApp.onMessage(" + safe + ");", null);
+        } catch (Exception ignored) { }
+    }
+
+    /** 工作台方法分派：全部是纯本地状态变更，绝不发网络请求或写密钥。 */
+    private Object dispatchWorkbench(BridgeV1.CallResult r, long now) {
+        Map<String, Object> p = r.params;
+        switch (r.method) {
+            case "xqly.workbench.env":
+                return WorkbenchState.envInfo();
+            case "xqly.workbench.snapshot":
+                return workbench.snapshot(manifestOk(), tokensOk(), true, signedOk(),
+                        offlineAssetsOk(), freeStorageMb());
+            case "xqly.workbench.session.list":
+                return workbench.chats().list();
+            case "xqly.workbench.session.create":
+                return workbench.chats().create(str(p, "id"), str(p, "title"), now);
+            case "xqly.workbench.session.append": {
+                String role = str(p, "role");
+                WorkbenchChat.Role cr = "user".equals(role) ? WorkbenchChat.Role.USER
+                        : "note".equals(role) ? WorkbenchChat.Role.NOTE : WorkbenchChat.Role.DRAFT;
+                return workbench.chats().append(str(p, "id"), cr, str(p, "text"), now);
+            }
+            case "xqly.workbench.session.remove":
+                return workbench.chats().remove(str(p, "id"));
+            case "xqly.workbench.provider.list":
+                return workbench.providers().list();
+            case "xqly.workbench.provider.mark":
+                return workbench.providers().markConfigured(str(p, "id"),
+                        !p.containsKey("configured") || bool(p, "configured"));
+            case "xqly.workbench.plugin.list":
+                return workbench.plugins().list();
+            case "xqly.workbench.plugin.register":
+                return workbench.plugins().register(str(p, "id"), str(p, "displayName"),
+                        str(p, "source"), str(p, "version"));
+            case "xqly.workbench.plugin.toggle":
+                return workbench.plugins().toggle(str(p, "id"), bool(p, "enabled"));
+            case "xqly.workbench.dropzone.check": {
+                WorkbenchDropzone.Verdict v = WorkbenchDropzone.check(str(p, "raw"));
+                Map<String, Object> m = new HashMap<String, Object>();
+                m.put("allowed", v.allowed);
+                m.put("reason", v.reason);
+                m.put("safeId", v.safeId);
+                return m;
+            }
+            case "xqly.workbench.selfcheck": {
+                List<WorkbenchSelfCheck.Item> items = WorkbenchSelfCheck.run(
+                        manifestOk(), tokensOk(), true, signedOk(), offlineAssetsOk(), freeStorageMb());
+                List<Object> out = new ArrayList<Object>();
+                for (WorkbenchSelfCheck.Item i : items) out.add(i.toJson());
+                return out;
+            }
+            case "xqly.workbench.log.append": {
+                WorkbenchLog.Level lv = workbenchLevel(str(p, "level"));
+                workbench.log().append(lv, str(p, "code"), str(p, "text"), now);
+                return true;
+            }
+            case "xqly.workbench.log.query": {
+                WorkbenchLog.Level lv = p.containsKey("level") ? workbenchLevel(str(p, "level")) : null;
+                int tail = p.containsKey("tail") ? (int) num(p, "tail") : 64;
+                List<WorkbenchLog.Entry> es = workbench.log().query(lv, str(p, "keyword"), tail);
+                List<Object> out = new ArrayList<Object>();
+                for (WorkbenchLog.Entry e : es) out.add(e.toJson());
+                return out;
+            }
+            default:
+                return WorkbenchState.emptyState();
+        }
+    }
+
+    private static WorkbenchLog.Level workbenchLevel(String s) {
+        if ("error".equals(s)) return WorkbenchLog.Level.ERROR;
+        if ("warning".equals(s)) return WorkbenchLog.Level.WARNING;
+        if ("success".equals(s)) return WorkbenchLog.Level.SUCCESS;
+        return WorkbenchLog.Level.INFO;
+    }
+
+    private static String str(Map<String, Object> m, String k) {
+        Object v = m.get(k);
+        return v instanceof String ? (String) v : "";
+    }
+    private static boolean bool(Map<String, Object> m, String k) {
+        Object v = m.get(k);
+        return v instanceof Boolean && (Boolean) v;
+    }
+    private static double num(Map<String, Object> m, String k) {
+        Object v = m.get(k);
+        return v instanceof Number ? ((Number) v).doubleValue() : 0;
+    }
+
     /** 端点白名单：默认空（未配置）。v1 不预置任何服务器，也不伪造连接成功。 */
     private Set<String> endpointAllowlist() {
         Set<String> s = new HashSet<String>();
@@ -958,6 +1095,39 @@ public class MainActivity extends Activity implements WebBridge.Host {
         } catch (Exception e) { searchIndex = SearchIndex.build(new ArrayList<SearchIndex.Doc>()); }
     }
 
+    // ---- AI 工作台自检 helper：全部基于本 App 真实状态，不伪造运行时能力 ----
+    private boolean manifestOk() {
+        try { return Long.parseLong(cachePrefs.get("pack.version", "0")) > 0; }
+        catch (Exception e) { return false; }
+    }
+
+    private boolean tokensOk() {
+        try { return readAsset("design-tokens.css").contains("--xq-background"); }
+        catch (Exception e) { return false; }
+    }
+
+    private boolean offlineAssetsOk() {
+        try {
+            return manifestOk() && readAsset("archive.html").length() > 0
+                    && searchIndex != null && searchIndex.docCount() > 0;
+        } catch (Exception e) { return false; }
+    }
+
+    private boolean signedOk() {
+        // 正式签名证书指纹已钉扎在 VersionPolicy；这里只判断签名来源是否可用。
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(),
+                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES) != null;
+        } catch (Exception e) { return false; }
+    }
+
+    private int freeStorageMb() {
+        try {
+            android.os.StatFs st = new android.os.StatFs(getCacheDir().getPath());
+            return (int) (st.getAvailableBytes() / (1024L * 1024L));
+        } catch (Exception e) { return 0; }
+    }
+
     /** 校验内置内容清单：失败只保留当前可用版本，绝不覆盖。 */
     private void verifyBundledContent() {
         new Thread(() -> {
@@ -1018,6 +1188,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         dock.setActive(index);
         if ("__ARCHIVE__".equals(path)) { openArchive(); return; }
         if ("__DEV_PORTAL__".equals(path)) { openDevPortal(); return; }
+        if ("__WORKBENCH__".equals(path)) { openWorkbench(); return; }
         currentPath = path; syncTitle();
         navigate(BASE + path);
     }
@@ -1037,6 +1208,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         if (layer == Layer.ARCHIVE) archiveWeb = w;
         else if (layer == Layer.GAME) gameWeb = w;
         else if (layer == Layer.DEV_PORTAL) devPortalWeb = w;
+        else if (layer == Layer.AI_WORKBENCH) workbenchWeb = w;
         pendingPages.put(layer, page);    // 首次打开时才 loadUrl（启动性能）
         return overlay;
     }
@@ -1045,6 +1217,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         if (l == Layer.ARCHIVE) return archiveWeb;
         if (l == Layer.GAME) return gameWeb;
         if (l == Layer.DEV_PORTAL) return devPortalWeb;
+        if (l == Layer.AI_WORKBENCH) return workbenchWeb;
         return null;                      // LIBRARY 是原生 View；NONE 无浮层
     }
 
@@ -1053,6 +1226,7 @@ public class MainActivity extends Activity implements WebBridge.Host {
         if (l == Layer.LIBRARY) return libraryOverlay;
         if (l == Layer.GAME) return gameOverlay;
         if (l == Layer.DEV_PORTAL) return devPortalOverlay;
+        if (l == Layer.AI_WORKBENCH) return workbenchOverlay;
         return null;
     }
 
@@ -1101,6 +1275,11 @@ public class MainActivity extends Activity implements WebBridge.Host {
         devPortal.setOnline(!offline);
         applyOverlayTransition(overlays.open(Layer.DEV_PORTAL));
         toast(offline ? "开发者平台 · 离线只读（远程会话不可用）" : "开发者平台 · 受控远程门户 v1");
+    }
+    /** AI 工作台入口：本地交互对标，完全离线可用，不加载第三方代码与运行时。 */
+    private void openWorkbench() {
+        applyOverlayTransition(overlays.open(Layer.AI_WORKBENCH));
+        toast("AI 工作台 · 本地交互对标（不内置模型与运行时）");
     }
     private void closeAllOverlays() { applyOverlayTransition(overlays.closeAll()); }
 

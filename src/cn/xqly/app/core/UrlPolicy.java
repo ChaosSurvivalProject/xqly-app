@@ -22,12 +22,14 @@ public final class UrlPolicy {
 
     /** 开发者平台本地页面（单一 WebView 池内的一个应用路由，不是新 Activity）。 */
     public static final String DEV_PORTAL_PAGE = "apps/dev-portal/index.html";
+    /** AI 工作台本地页面（单一 WebView 池内的一个应用路由）。 */
+    public static final String WORKBENCH_PAGE = "apps/ai-workbench/index.html";
 
     /** 内置 HTML 页面白名单（仅这几个可 file:// 打开）。
      *  dev-portal 使用完整相对路径精确匹配，不按文件名放宽，避免任意子目录越权。 */
     private static final String[] LOCAL_PAGES = {
             "archive.html", "game.html", "library.html",
-            "apps/dev-portal/index.html"
+            "apps/dev-portal/index.html", "apps/ai-workbench/index.html"
     };
 
     public static Kind classify(String raw) {
@@ -46,7 +48,8 @@ public final class UrlPolicy {
             if (path.contains("..") || path.contains("\\") || path.contains("%2e%2e")) return Kind.BLOCKED;
             String name = path.substring("/android_asset/".length());
             // 只允许 dev-portal 这一个受控子目录；且必须逐字命中 LOCAL_PAGES。
-            if (name.contains("/") && !name.startsWith("apps/dev-portal/")) return Kind.BLOCKED;
+            if (name.contains("/") && !name.startsWith("apps/dev-portal/")
+                    && !name.startsWith("apps/ai-workbench/")) return Kind.BLOCKED;
             for (String ok : LOCAL_PAGES) if (ok.equals(name)) return Kind.LOCAL_ASSET;
             return Kind.BLOCKED;
         }
@@ -86,7 +89,10 @@ public final class UrlPolicy {
             "design-tokens.css",  // 由 shared/tool/gen_tokens.dart 生成的双平台共享令牌
             "apps/dev-portal/app.css",
             "apps/dev-portal/app.js",
-            "apps/dev-portal/bridge-v1.js"
+            "apps/dev-portal/bridge-v1.js",
+            "apps/ai-workbench/app.css",
+            "apps/ai-workbench/app.js",
+            "apps/ai-workbench/bridge-v1.js"
     };
 
     public static boolean localResourceAllowed(String raw) {

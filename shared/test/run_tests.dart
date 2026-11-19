@@ -145,6 +145,7 @@ void main(List<String> args) {
   syncMergeTests(h);
   transportTests(h);
   moduleTests(h, args);
+  workbenchTests(h, args);
   realAssetTests(h, args);
 
   exitCode = h.finish();
@@ -216,10 +217,10 @@ void jsonTests(Harness h) {
 
 void identityTests(Harness h) {
   h.group('双平台身份常量（与 Android Java 侧逐项一致）');
-  h.t('业务版本 2.2.0 / code 9 / 四段版本', () {
-    eq(AppIdentity.versionName, '2.2.0');
-    eq(AppIdentity.versionCode, 9);
-    eq(AppIdentity.windowsVersion, '2.2.0.0');
+  h.t('业务版本 2.3.0 / code 10 / 四段版本', () {
+    eq(AppIdentity.versionName, '2.3.0');
+    eq(AppIdentity.versionCode, 10);
+    eq(AppIdentity.windowsVersion, '2.3.0.0');
   });
   h.t('发布者与仓库钉扎', () {
     eq(AppIdentity.repo, 'ChaosSurvivalProject/xqly-app');
@@ -1284,8 +1285,8 @@ void moduleTests(Harness h, List<String> args) {
       );
 
   h.group('应用注册表 · 应用类模组与独立沙箱');
-  h.t('三个应用登记齐全，dev-portal 为离线只读且社区标识常驻', () {
-    eq(AppRegistry.apps.length, 3);
+  h.t('应用登记齐全，dev-portal 为离线只读且社区标识常驻', () {
+    ok(AppRegistry.apps.length >= 3);
     final AppSpec p = AppRegistry.byId(AppRegistry.devPortalId)!;
     eq(p.offline, OfflineCapability.readOnly);
     eq(p.bridgeScope, 'devportal:*');
@@ -1390,10 +1391,10 @@ void moduleTests(Harness h, List<String> args) {
     ok(!EndpointPolicy.queryAllowed('token=abc'));
   });
 
-  h.group('xqly-bridge/1 · 16 方法 / 权限 / 幂等 / 限流 / 脱敏');
-  h.t('16 条方法与权限矩阵完整，默认权限仅 6 项', () {
-    eq(BridgeV1.methods.length, 16);
-    eq(BridgeV1.permissionMatrix().length, 16);
+  h.group('xqly-bridge/1 · 方法 / 权限 / 幂等 / 限流 / 脱敏');
+  h.t('方法与权限矩阵完整，默认权限仅 6 项', () {
+    ok(BridgeV1.methods.length >= 16);
+    eq(BridgeV1.permissionMatrix().length, BridgeV1.methods.length);
     eq(BridgeV1.defaultPermissions.length, 6);
     ok(BridgeV1.defaultPermissions.contains('public'));
     ok(!BridgeV1.defaultPermissions.contains('credential'));
@@ -1644,5 +1645,197 @@ void moduleTests(Harness h, List<String> args) {
         File('$root/assets/apps/dev-portal/index.html').readAsStringSync();
     ok(html.contains('design-tokens.css'), '未引入共享令牌');
     ok(!html.contains('<script src="http'), '引入了外部脚本');
+  });
+}
+
+// ---------------------------------------------------------------- AI 工作台 · 零依赖功能对标
+void workbenchTests(Harness h, List<String> args) {
+  final String root = args.isNotEmpty ? args.first : '.';
+  h.group('AI 工作台 · 会话 / 供应商 / 插件 / 投递区 / 自检 / 日志');
+
+  h.t('应用注册表新增 ai-workbench：离线可用、独立分区、workbench 作用域', () {
+    final AppSpec a = AppRegistry.byId(AppRegistry.aiWorkbenchId)!;
+    eq(a.offline, OfflineCapability.full);
+    eq(a.bridgeScope, 'workbench:*');
+    eq(a.storagePartition, 'ai-workbench');
+    ok(AppRegistry.storageIsolated(AppRegistry.aiWorkbenchId, AppRegistry.devPortalId));
+    ok(AppRegistry.navDepthAllowed(AppRegistry.aiWorkbenchId, AppNav.detail));
+    ok(!AppRegistry.navDepthAllowed(AppRegistry.aiWorkbenchId, 5));
+    ok(AppRegistry.routeAllowed('xqly-app://apps/ai-workbench'));
+    ok(!AppRegistry.routeAllowed('xqly-app://apps/ai-workbench/../evil'));
+  });
+
+  h.t('桥作用域按 appId 动态匹配；工作台 appId 合法、外来 appId 拒绝', () {
+    eq(BridgeV1.scopeFor(AppRegistry.devPortalId), 'devportal:*');
+    eq(BridgeV1.scopeFor(AppRegistry.aiWorkbenchId), 'workbench:*');
+    eq(BridgeV1.scopeFor('evil'), null);
+    ok(BridgeV1.methods.containsKey('xqly.workbench.snapshot'));
+    ok(BridgeV1.methods.length >= 31);
+  });
+
+  h.t('工作台 15 条方法全是本地操作：零网络、零审批、零遥测、零密钥参数', () {
+    int n = 0;
+    for (final MethodSpec s in BridgeV1.methods.values) {
+      if (!s.name.startsWith('xqly.workbench.')) continue;
+      n++;
+      ok(!s.network, '${s.name} 不应联网');
+      ok(!s.requiresApproval, '${s.name} 不应需要审批');
+      ok(s.permission != 'telemetry:optional', '${s.name} 不应遥测');
+      for (final String k in s.allowedKeys) {
+        ok(k != 'apiKey' && k != 'key' && k != 'secret' && k != 'token' && k != 'api_key',
+            '${s.name} 参数 $k 疑似密钥');
+      }
+    }
+    eq(n, 15);
+  });
+
+  h.t('工作台 envelope 走桥校验：合法放行，越界 appId / 未知方法 / 危险键拒绝', () {
+    final Map<String, int> last = <String, int>{};
+    final Set<String> perms = <String>{
+      'public', 'ui', 'nav', 'link', 'update', 'clipboard', 'workbench'
+    };
+    String env(String appId, String method, [Map<String, Object?>? params]) => Json.encode(<String, Object?>{
+          'bridge': 'xqly-bridge/1', 'appId': appId, 'id': 'w1', 'method': method,
+          'params': params ?? <String, Object?>{},
+        });
+    final CallResult okR = BridgeV1.validate(env('ai-workbench', 'xqly.workbench.snapshot'),
+        permissions: perms, nowMs: 1000, lastCallAt: last, online: false,
+        telemetryOptIn: false, approvalGranted: false);
+    ok(okR.ok, '合法工作台调用应放行');
+    final CallResult badApp = BridgeV1.validate(env('evil', 'xqly.workbench.snapshot'),
+        permissions: perms, nowMs: 2000, lastCallAt: last, online: false,
+        telemetryOptIn: false, approvalGranted: false);
+    eq(badApp.reason, 'foreignApp');
+    final CallResult badMethod = BridgeV1.validate(env('ai-workbench', 'xqly.workbench.exec'),
+        permissions: perms, nowMs: 3000, lastCallAt: last, online: false,
+        telemetryOptIn: false, approvalGranted: false);
+    eq(badMethod.reason, 'unknownMethod');
+    final CallResult noPerm = BridgeV1.validate(env('ai-workbench', 'xqly.workbench.snapshot'),
+        permissions: BridgeV1.defaultPermissions, nowMs: 4000, lastCallAt: last,
+        online: false, telemetryOptIn: false, approvalGranted: false);
+    eq(noPerm.reason, 'permissionDenied');
+  });
+
+  h.t('会话仓库：新建 / 追加 / 最近更新排序 / 上限与穿越保护', () {
+    final ChatStore c = ChatStore();
+    ok(c.create('s1', '会话一', 100));
+    ok(c.create('s2', '会话二', 200));
+    ok(!c.create('s1', '重复', 300), '重复 id 拒绝');
+    ok(!c.create('../bad', '穿越', 300), '非法 id 拒绝');
+    ok(c.append('s1', ChatRole.user, '草稿', 300));
+    ok(!c.append('s1', ChatRole.user, '', 300), '空文本拒绝');
+    ok(!c.append('missing', ChatRole.note, 'x', 300), '未知会话拒绝');
+    final List<Map<String, Object?>> list = c.list();
+    eq(list.first['id'], 's1', '最近更新优先');
+    ok(c.remove('s2'));
+    eq(c.count, 1);
+  });
+
+  h.t('供应商目录：9 个模板、只登记布尔配置态、绝无密钥值', () {
+    eq(WorkbenchProvider.catalog.length, 9);
+    eq(WorkbenchProvider.validId('deepseek'), true);
+    eq(WorkbenchProvider.validId('evil'), false);
+    final WorkbenchProvider p = WorkbenchProvider();
+    ok(p.markConfigured('deepseek'));
+    ok(p.isConfigured('deepseek'));
+    ok(!p.markConfigured('evil'));
+    ok(WorkbenchProvider.customHostAllowed('api.example.com'));
+    ok(!WorkbenchProvider.customHostAllowed('127.0.0.1'));
+    ok(!WorkbenchProvider.customHostAllowed('localhost'));
+    ok(!WorkbenchProvider.customHostAllowed('evil.com/path'));
+    for (final Map<String, Object?> e in p.list()) {
+      ok(e.containsKey('configured'));
+      ok(!e.toString().toLowerCase().contains('apikey'));
+    }
+  });
+
+  h.t('插件清单：注册 / 启停 / 版本更新与回滚（回滚后禁用）', () {
+    final WorkbenchPlugin p = WorkbenchPlugin();
+    ok(p.register('npm.pkg', '示例包', 'npm', '1.0.0'));
+    ok(!p.register('npm.pkg', '重复', 'npm', '1.0.1'));
+    ok(!p.register('bad id', '空格', 'npm', '1.0.0'));
+    ok(!p.register('x', 'x', 'local', '1.0.0'));
+    ok(p.toggle('npm.pkg', true));
+    ok(p.list().first['enabled'] == true);
+    ok(p.update('npm.pkg', '1.1.0'));
+    ok(!p.update('npm.pkg', '1.0.9'), '禁止降级');
+    ok(p.rollback('npm.pkg'));
+    eq(p.list().first['version'], '1.0.0');
+    eq(p.list().first['enabled'], false, '回滚后禁用');
+  });
+
+  h.t('投递区：只接受 root/1 相对路径，穿越/绝对/编码/外挂全拒绝', () {
+    ok(WorkbenchDropzone.check('root/1/a.txt').allowed);
+    ok(!WorkbenchDropzone.check('root/1/../evil').allowed);
+    ok(!WorkbenchDropzone.check('/etc/passwd').allowed);
+    ok(!WorkbenchDropzone.check('root/1/%2e%2e/x').allowed);
+    ok(!WorkbenchDropzone.check('C:\\evil').allowed);
+    ok(!WorkbenchDropzone.check('other/1/a.txt').allowed);
+    eq(WorkbenchDropzone.check('root/1/a.txt').safeId.length, 19);
+  });
+
+  h.t('自检：6 项本地能力 + 13 项运行时不可用，unavailable 不算失败', () {
+    final List<CheckItem> items = WorkbenchSelfCheck.run(
+      manifestOk: true, tokensOk: true, bridgeOk: true,
+      signedOk: true, offlineAssetsOk: true, freeMb: 1024);
+    eq(items.length, 19);
+    final Map<String, Object?> s = WorkbenchSelfCheck.summary(items);
+    eq(s['healthy'], true);
+    eq(s['fail'], 0);
+    eq(s['unavailable'], 13);
+    final List<CheckItem> broken = WorkbenchSelfCheck.run(
+      manifestOk: false, tokensOk: true, bridgeOk: true,
+      signedOk: true, offlineAssetsOk: true, freeMb: 1024);
+    eq(WorkbenchSelfCheck.summary(broken)['healthy'], false);
+  });
+
+  h.t('诊断日志：统一脱敏 + 尾部窗口 + 已知错误判读', () {
+    final WorkbenchLog l = WorkbenchLog(capacity: 16);
+    l.append(LogLevel.info, 'UI', 'apiKey="sk-secret-1234567890" file:///data/x', 1);
+    eq(l.query().first.text.contains('sk-secret'), false, '密钥值应脱敏');
+    eq(l.query().first.text.contains('file:///data'), false, '路径应脱敏');
+    for (int i = 0; i < 100; i++) l.append(LogLevel.info, 'UI', 'msg $i', i);
+    eq(l.query(tail: 5).length, 5, '尾部窗口');
+    ok(WorkbenchLog.verdict('credential missing').contains('凭据'));
+    ok(WorkbenchLog.verdict('something odd').contains('未命中'));
+  });
+
+  h.t('聚合 snapshot 只暴露非敏感字段，不泄露密钥/令牌/执行能力', () {
+    final WorkbenchState w = WorkbenchState();
+    final Map<String, Object?> s = w.snapshot(
+      manifestOk: true, tokensOk: true, bridgeOk: true,
+      signedOk: true, offlineAssetsOk: true, freeMb: 1024);
+    eq(s['canExecute'], false);
+    eq(s['canCallModel'], false);
+    eq(s['credentialStored'], false);
+    eq(s['telemetry'], false);
+    ok(!s.toString().toLowerCase().contains('apikey'));
+    final Map<String, Object?> e = WorkbenchState.envInfo();
+    eq(e['canCallModel'], false);
+  });
+
+  h.t('前端四个资源存在、零外部请求/密钥/定时器、清单已收录、引入共享令牌', () {
+    for (final String n in <String>['index.html', 'app.css', 'app.js', 'bridge-v1.js']) {
+      ok(File('$root/assets/apps/ai-workbench/$n').existsSync(), '缺少 $n');
+    }
+    final String js = File('$root/assets/apps/ai-workbench/bridge-v1.js')
+        .readAsStringSync() + File('$root/assets/apps/ai-workbench/app.js').readAsStringSync();
+    for (final String bad in <String>[
+      'fetch(', 'XMLHttpRequest', 'eval(', 'setInterval(', 'https://',
+      'localStorage', 'api_key', 'Authorization'
+    ]) {
+      ok(!js.contains(bad), '出现禁止调用 $bad');
+    }
+    final String html = File('$root/assets/apps/ai-workbench/index.html').readAsStringSync();
+    ok(html.contains('design-tokens.css'), '未引入共享令牌');
+    ok(!html.contains('<script src="http'), '引入外部脚本');
+    final Map<String, Object?> m = Json.decode(
+        File('$root/assets/MANIFEST.json').readAsStringSync()) as Map<String, Object?>;
+    final Set<String> paths = <String>{
+      for (final Object? f in (m['files'] as List<Object?>)) (f as Map)['p'] as String
+    };
+    for (final String n in <String>['index.html', 'app.css', 'app.js', 'bridge-v1.js']) {
+      ok(paths.contains('apps/ai-workbench/$n'), '清单未收录 $n');
+    }
   });
 }

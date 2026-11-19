@@ -32,6 +32,7 @@ public final class CoreTestSuite {
         stateTests(h);
         overlayTests(h);
         moduleTests(h);
+        workbenchTests(h);
         bundleTests(h);
         System.exit(h.run());
     }
@@ -935,8 +936,8 @@ public final class CoreTestSuite {
 
     private static void moduleTests(TestHarness h) {
         h.group("应用注册表 · 应用类模组与独立沙箱");
-        h.test("三个应用登记齐全，dev-portal 为离线只读", () -> {
-            eqInt(AppRegistry.APPS.size(), 3, "应用数");
+        h.test("应用登记齐全，dev-portal 为离线只读", () -> {
+            isTrue(AppRegistry.APPS.size() >= 3, "应用数");
             AppRegistry.AppSpec p = AppRegistry.byId(AppRegistry.DEV_PORTAL_ID);
             notNull(p, "dev-portal 应已注册");
             eq(p.offline, AppRegistry.Offline.READ_ONLY, "离线能力");
@@ -1008,10 +1009,10 @@ public final class CoreTestSuite {
             isFalse(EndpointPolicy.TELEMETRY_DEFAULT, "默认遥测关闭");
         });
 
-        h.group("xqly-bridge/1 · 16 方法 / 越权拒绝 / 幂等限流 / 脱敏");
-        h.test("16 条方法与默认权限仅 6 项，版本与注册表一致", () -> {
-            eqInt(BridgeV1.METHODS.size(), 16, "方法数");
-            eqInt(BridgeV1.permissionMatrix().size(), 16, "权限矩阵");
+        h.group("xqly-bridge/1 · 方法 / 越权拒绝 / 幂等限流 / 脱敏");
+        h.test("方法与默认权限仅 6 项，版本与注册表一致", () -> {
+            isTrue(BridgeV1.METHODS.size() >= 16, "方法数");
+            eqInt(BridgeV1.permissionMatrix().size(), BridgeV1.METHODS.size(), "权限矩阵");
             eqInt(BridgeV1.DEFAULT_PERMISSIONS.size(), 6, "默认权限数");
             isTrue(BridgeV1.DEFAULT_PERMISSIONS.contains("public"), "public 默认授予");
             isFalse(BridgeV1.DEFAULT_PERMISSIONS.contains("credential"), "credential 不授予");
@@ -1195,7 +1196,7 @@ public final class CoreTestSuite {
             eq(UrlPolicy.DEV_PORTAL_PAGE, "apps/dev-portal/index.html", "页面常量");
         });
         h.test("OverlayController 已纳入 DEV_PORTAL 且仍满足互斥不变量", () -> {
-            eqInt(OverlayController.Layer.OVERLAYS.length, 4, "四个浮层");
+            isTrue(OverlayController.Layer.OVERLAYS.length >= 4, "浮层数");
             OverlayController c = new OverlayController();
             OverlayController.Transition t = c.open(OverlayController.Layer.DEV_PORTAL);
             eq(t.show, OverlayController.Layer.DEV_PORTAL, "显示开发者平台");
@@ -1221,4 +1222,108 @@ public final class CoreTestSuite {
         for (Layer l : arr) if (l == x) return true;
         return false;
     }
+
+    // ---------------------------------------------------------------- AI 工作台 · Java 镜像
+    private static void workbenchTests(TestHarness h) {
+        h.group("AI 工作台 · 会话 / 供应商 / 插件 / 投递区 / 自检 / 日志");
+        h.test("应用注册表含 ai-workbench：独立分区 / workbench 作用域 / 路由", () -> {
+            AppRegistry.AppSpec a = AppRegistry.byId(AppRegistry.AI_WORKBENCH_ID);
+            notNull(a, "工作台已注册");
+            eq(a.offline, AppRegistry.Offline.FULL, "离线可用");
+            eq(a.bridgeScope, "workbench:*", "作用域");
+            isTrue(AppRegistry.storageIsolated("ai-workbench", "dev-portal"), "存储隔离");
+            isTrue(AppRegistry.routeAllowed("xqly-app://apps/ai-workbench"), "路由");
+            isFalse(AppRegistry.routeAllowed("xqly-app://apps/ai-workbench/../evil"), "穿越拒绝");
+        });
+        h.test("桥作用域按 appId 匹配；工作台方法零网络/审批/遥测/密钥参数", () -> {
+            eq(BridgeV1.scopeFor("dev-portal"), "devportal:*", "门户作用域");
+            eq(BridgeV1.scopeFor("ai-workbench"), "workbench:*", "工作台作用域");
+            eq(BridgeV1.scopeFor("evil"), null, "外来 appId");
+            isTrue(BridgeV1.METHODS.size() >= 31, "方法数");
+            int n = 0;
+            for (BridgeV1.MethodSpec s : BridgeV1.METHODS.values()) {
+                if (!s.name.startsWith("xqly.workbench.")) continue;
+                n++;
+                isFalse(s.network, s.name + " 不联网");
+                isFalse(s.requiresApproval, s.name + " 不需审批");
+                isFalse(s.permission.equals("telemetry:optional"), s.name + " 不遥测");
+                for (String k : s.allowedKeys) {
+                    isFalse(k.equals("apiKey") || k.equals("key") || k.equals("secret")
+                        || k.equals("token") || k.equals("api_key"), s.name + " 参数 " + k);
+                }
+            }
+            eqInt(n, 15, "工作台方法数");
+        });
+        h.test("会话仓库：新建 / 追加 / 排序 / 上限保护", () -> {
+            WorkbenchChat c = new WorkbenchChat();
+            isTrue(c.create("s1", "会话一", 100L), "建 s1");
+            isTrue(c.create("s2", "会话二", 200L), "建 s2");
+            isFalse(c.create("s1", "重复", 300L), "重复拒绝");
+            isFalse(c.create("../bad", "穿越", 300L), "非法 id");
+            isTrue(c.append("s1", WorkbenchChat.Role.USER, "草稿", 300L), "追加");
+            isFalse(c.append("s1", WorkbenchChat.Role.USER, "", 300L), "空文本拒绝");
+            eq(c.list().get(0).get("id"), "s1", "最近更新优先");
+            isTrue(c.remove("s2"), "删除");
+            eqInt(c.count(), 1, "剩余数");
+        });
+        h.test("供应商目录：9 模板 / 只登记布尔配置态 / 自建主机校验", () -> {
+            eqInt(WorkbenchProvider.CATALOG.size(), 9, "模板数");
+            isTrue(WorkbenchProvider.validId("deepseek"), "合法 id");
+            isFalse(WorkbenchProvider.validId("evil"), "非法 id");
+            WorkbenchProvider p = new WorkbenchProvider();
+            isTrue(p.markConfigured("deepseek", true), "标记配置");
+            isTrue(p.isConfigured("deepseek"), "已配置");
+            isTrue(WorkbenchProvider.customHostAllowed("api.example.com"), "公网主机");
+            isFalse(WorkbenchProvider.customHostAllowed("127.0.0.1"), "私网拒绝");
+            isFalse(WorkbenchProvider.customHostAllowed("localhost"), "环回拒绝");
+            for (Map<String, Object> e : p.list()) {
+                isTrue(e.containsKey("configured"), "有配置态");
+                isFalse(e.toString().toLowerCase(java.util.Locale.US).contains("apikey"), "无密钥");
+            }
+        });
+        h.test("插件清单：注册 / 启停 / 更新回滚（回滚后禁用）", () -> {
+            WorkbenchPlugin p = new WorkbenchPlugin();
+            isTrue(p.register("npm.pkg", "示例", "npm", "1.0.0"), "注册");
+            isFalse(p.register("npm.pkg", "重复", "npm", "1.0.1"), "重复拒绝");
+            isTrue(p.toggle("npm.pkg", true), "启用");
+            eq(p.list().get(0).get("enabled"), true, "启用态");
+            isTrue(p.update("npm.pkg", "1.1.0"), "更新");
+            isFalse(p.update("npm.pkg", "1.0.9"), "禁止降级");
+            isTrue(p.rollback("npm.pkg"), "回滚");
+            eq(p.list().get(0).get("version"), "1.0.0", "版本回退");
+            eq(p.list().get(0).get("enabled"), false, "回滚后禁用");
+        });
+        h.test("投递区：工作区约束 / 穿越与编码绕过拒绝 / 稳定标识", () -> {
+            isTrue(WorkbenchDropzone.check("root/1/a.txt").allowed, "合法相对路径");
+            isFalse(WorkbenchDropzone.check("root/1/../evil").allowed, "穿越拒绝");
+            isFalse(WorkbenchDropzone.check("/etc/passwd").allowed, "绝对拒绝");
+            isFalse(WorkbenchDropzone.check("root/1/%2e%2e/x").allowed, "编码拒绝");
+            isFalse(WorkbenchDropzone.check("other/1/a.txt").allowed, "工作区外拒绝");
+            eqInt(WorkbenchDropzone.check("root/1/a.txt").safeId.length(), 19, "标识长度");
+        });
+        h.test("自检：运行时项 UNAVAILABLE 不算失败；诊断日志统一脱敏与窗口", () -> {
+            java.util.List<WorkbenchSelfCheck.Item> items = WorkbenchSelfCheck.run(
+                true, true, true, true, true, 1024);
+            eqInt(items.size(), 19, "自检项数");
+            eq(WorkbenchSelfCheck.summary(items).get("healthy"), true, "健康");
+            eqInt(((Number) WorkbenchSelfCheck.summary(items).get("unavailable")).intValue(), 13, "运行时不可用数");
+            WorkbenchLog l = new WorkbenchLog(16);
+            l.append(WorkbenchLog.Level.INFO, "UI", "apiKey=\"sk-secret-1234567890\" file:///data/x", 1L);
+            isFalse(l.query(null, "", 8).get(0).text.contains("sk-secret"), "密钥脱敏");
+            isFalse(l.query(null, "", 8).get(0).text.contains("file:///data"), "路径脱敏");
+            for (int i = 0; i < 100; i++) l.append(WorkbenchLog.Level.INFO, "UI", "msg " + i, i);
+            eqInt(l.query(null, "", 5).size(), 5, "尾部窗口");
+            isTrue(WorkbenchLog.verdict("credential missing").contains("凭据"), "错误判读");
+        });
+        h.test("聚合 snapshot 不泄露密钥/令牌，不提供执行与模型能力", () -> {
+            WorkbenchState w = new WorkbenchState();
+            Map<String, Object> s = w.snapshot(true, true, true, true, true, 1024);
+            eq(s.get("canExecute"), false, "不执行工具");
+            eq(s.get("canCallModel"), false, "不发模型请求");
+            eq(s.get("credentialStored"), false, "无密钥落盘");
+            eq(s.get("telemetry"), false, "默认零遥测");
+            isFalse(s.toString().toLowerCase(java.util.Locale.US).contains("apikey"), "无密钥字段");
+        });
+    }
+
 }

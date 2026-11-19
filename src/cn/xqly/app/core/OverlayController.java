@@ -22,9 +22,11 @@ public final class OverlayController {
         LIBRARY,
         GAME,
         /** 开发者平台：与方块合成并列的应用路由，同样纳入互斥，杜绝残留叠加。 */
-        DEV_PORTAL;
+        DEV_PORTAL,
+        /** AI 工作台：本地交互对标，纳入互斥浮层。 */
+        AI_WORKBENCH;
 
-        public static final Layer[] OVERLAYS = { ARCHIVE, LIBRARY, GAME, DEV_PORTAL };
+        public static final Layer[] OVERLAYS = { ARCHIVE, LIBRARY, GAME, DEV_PORTAL, AI_WORKBENCH };
     }
 
     /** 一次状态变更的完整迁移结果，调用方据此重设所有浮层可见性。 */

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-mode="glass">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>星穹旅驿 · AI 工作台</title>
+<link rel="stylesheet" href="file:///android_asset/design-tokens.css">
+<link rel="stylesheet" href="app.css">
+<script src="bridge-v1.js"></script>
+</head>
+<body>
+
+<div class="feedback" id="feedback" role="status" aria-live="polite" data-level="info">
+  <span class="grow" id="feedback-text"></span>
+  <button class="btn sm ghost btn-icon" id="feedback-close" type="button" aria-label="关闭提示">✕</button>
+</div>
+
+<header class="hd">
+  <div class="grow">
+    <h1>星穹旅驿 AI 工作台</h1>
+    <p class="dim">本地交互对标 · 不内置模型与运行时 · xqly-bridge/1</p>
+  </div>
+  <button class="btn sm ghost btn-icon" id="btn-close" type="button" aria-label="关闭工作台">✕</button>
+</header>
+
+<main>
+  <div class="banner" id="boundary-banner">
+    <b>能力边界：</b>本模块对标 AI 工作台的界面与本地数据管理，<b>不内置</b> PRoot / Ubuntu / Node 运行时，
+    <b>不执行</b>任何工具，<b>不保存</b>密钥，<b>不发起</b>模型请求。模型推理请在你信任的外部服务完成。
+  </div>
+
+  <section>
+    <div class="sec-hd"><h2>运行状态</h2><span class="badge" id="health-badge">检测中…</span></div>
+    <div class="card">
+      <dl class="kv" id="kv-state">
+        <dt>能力</dt><dd class="mono">local-only</dd>
+        <dt>工具执行</dt><dd>不提供</dd>
+        <dt>模型调用</dt><dd>不发起</dd>
+        <dt>密钥落盘</dt><dd>无</dd>
+        <dt>遥测</dt><dd>默认关闭</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>本地会话</h2><span class="badge">草稿与笔记 · 仅存内存</span></div>
+    <div class="card">
+      <div class="row">
+        <input type="text" id="session-title" placeholder="新会话标题" aria-label="新会话标题" style="flex:1 1 180px">
+        <button class="btn sm primary" id="btn-session-create" type="button">新建</button>
+      </div>
+      <div class="list" id="session-list" style="margin-top:10px"><p class="dim">尚无会话。</p></div>
+      <div class="row" style="margin-top:10px">
+        <input type="text" id="session-id" placeholder="会话 id" aria-label="会话 id" style="flex:0 1 130px">
+        <select id="msg-role" aria-label="消息类型">
+          <option value="user">用户草稿</option>
+          <option value="note">离线笔记</option>
+          <option value="draft">占位草稿</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="msg-text" placeholder="消息内容（本地记录，不发送）" aria-label="消息内容" style="flex:1 1 200px">
+        <button class="btn sm" id="btn-msg-append" type="button">追加</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>模型供应商目录</h2><span class="badge">仅配置状态 · 无密钥</span></div>
+    <div class="card">
+      <p class="dim">此处只记录"是否已配置"的布尔状态，不接收也不保存任何 API Key。密钥请在你信任的外部环境管理。</p>
+      <div class="list" id="provider-list" style="margin-top:10px"><p class="dim">读取中…</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>插件清单</h2><span class="badge">只登记 · 不加载代码</span></div>
+    <div class="card">
+      <div class="row">
+        <input type="text" id="plugin-id" placeholder="插件 id" aria-label="插件 id" style="flex:0 1 120px">
+        <input type="text" id="plugin-name" placeholder="显示名" aria-label="显示名" style="flex:0 1 130px">
+        <select id="plugin-source" aria-label="来源">
+          <option value="npm">npm</option>
+          <option value="https">https</option>
+          <option value="git-https">git+https</option>
+        </select>
+        <input type="text" id="plugin-version" placeholder="1.0.0" value="1.0.0" aria-label="版本" style="flex:0 1 90px">
+        <button class="btn sm" id="btn-plugin-add" type="button">登记</button>
+      </div>
+      <div class="list" id="plugin-list" style="margin-top:10px"><p class="dim">尚无插件。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>投递区路径校验</h2><span class="badge">NoFollow · 工作区约束</span></div>
+    <div class="card">
+      <div class="row">
+        <input type="text" id="dropzone-path" placeholder="root/1/示例.txt" aria-label="相对路径" style="flex:1 1 200px">
+        <button class="btn sm" id="btn-dropzone-check" type="button">校验</button>
+      </div>
+      <p class="dim" id="dropzone-result" style="margin-top:8px">仅判定路径安全性，返回稳定标识，不读写文件。</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>环境自检</h2><span class="badge">运行时项如实标为未提供</span></div>
+    <div class="card">
+      <div class="checks" id="check-list"><p class="dim">检测中…</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>诊断日志</h2><span class="badge" id="log-count">0 条</span></div>
+    <div class="card">
+      <div class="row">
+        <select id="log-level" aria-label="级别">
+          <option value="info">info</option>
+          <option value="success">success</option>
+          <option value="warning">warning</option>
+          <option value="error">error</option>
+        </select>
+        <input type="text" id="log-text" placeholder="日志内容（入库前脱敏）" aria-label="日志内容" style="flex:1 1 180px">
+        <button class="btn sm" id="btn-log-add" type="button">记录</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="log-keyword" placeholder="关键字过滤" aria-label="关键字过滤" style="flex:1 1 160px">
+        <button class="btn sm" id="btn-log-query" type="button">查询</button>
+      </div>
+      <div class="stream" id="log-stream" style="margin-top:10px">暂无日志。</div>
+      <p class="dim" id="log-verdict" style="margin-top:8px"></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-hd"><h2>桥方法与默认权限</h2><span class="badge" id="method-count">工作台作用域</span></div>
+    <div class="card">
+      <table class="matrix">
+        <thead><tr><th>方法</th><th>说明</th></tr></thead>
+        <tbody id="matrix-body"></tbody>
+      </table>
+      <p class="dim" style="margin-top:10px">全部方法为零本地操作：不发网络、不执行工具、不读写密钥。越权与未知方法 100% 拒绝。</p>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -2,7 +2,16 @@
 
 所有版本均通过 `build.sh` 12 步构建门禁，Android 产物为同一发布证书签名。
 
-## v2.2.0（本次发布）· 开发者平台模组与统一 UI 契约
+## v2.3.0（本次发布）· AI 工作台（零依赖功能对标）
+
+- 按用户选定方向，以零依赖架构重写 harness 的会话/供应商/插件/投递区/自检/诊断交互，**不引入 AGPL/GPL 代码**。
+- 新增应用 `ai-workbench`：互斥浮层、Dock + 侧栏双入口、独立 `workbench:*` 作用域与存储分区。
+- 桥协议新增 15 条 `xqly.workbench.*` 本地方法（共 31 条），appId 作用域按注册表动态匹配。
+- 修复 Dart `workbenchRedact` 内联 `(?i)` 运行时崩溃与裸 key/sk- 密钥脱敏缺口。
+- 测试：Dart 190 + JVM 144 + Node 19 + 15 + 7 + C++ 34 = **409 用例**，全部通过。
+- 详见 [docs/RELEASE_NOTES_2.3.0.md](docs/RELEASE_NOTES_2.3.0.md)、[docs/AI_WORKBENCH_MODULE.md](docs/AI_WORKBENCH_MODULE.md)。
+
+## v2.2.0 · 开发者平台模组与统一 UI 契约
 
 - **新增应用类模组 `dev-portal`**：应用注册表、单一 WebView 池路由、`OverlayController` 互斥浮层、
   独立沙箱、底部 Dock 与侧边药丸双入口、离线只读外壳。
