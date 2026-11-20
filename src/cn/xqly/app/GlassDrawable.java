@@ -17,7 +17,7 @@ import android.view.View;
 /**
  * 「星穹玻璃」绘制层（自有设计语言）。
  * 由「半透明玻璃体 + 双色折射光斑 + 流动高光 + 折射描边 + 悬浮阴影」叠加而成，
- * 不依赖 RenderEffect，兼容 Android 7.0+。
+ * 不依赖 RenderEffect，最低支持 Android 9.0（API 28）。
  */
 public class GlassDrawable extends Drawable {
 

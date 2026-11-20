@@ -81,8 +81,8 @@ public class MainActivity extends Activity implements WebBridge.Host {
     private static final int DAWN = 0xFFFFCE86;
     private static final int DUSK = 0xFFA87CFF;
 
-    public static final String VERSION_NAME = "2.3.0";
-    public static final int VERSION_CODE = 10;
+    public static final String VERSION_NAME = "2.4.0";
+    public static final int VERSION_CODE = 11;
 
     private FrameLayout root;
     private WebView web, archiveWeb, gameWeb, devPortalWeb, workbenchWeb;

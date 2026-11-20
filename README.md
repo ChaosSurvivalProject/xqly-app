@@ -1,14 +1,14 @@
-# 星穹旅驿 · 官方双平台客户端（Android + Windows）
+# 星穹旅驿 · 官方 Android 客户端
 
-**由星穹旅驿服务器运营团队官方发布**，官网：[xqly.xt91tv.shop](https://xqly.xt91tv.shop)。
+**由星穹旅驿服务器运营团队官方发布**，官网：[xqly.xt91tv.shop](https://xqly.xt91tv.shop)。开源仓库：[github.com/ChaosSurvivalProject/xqly-app](https://github.com/ChaosSurvivalProject/xqly-app)。
 
-**原生 Android**（Java + 系统 WebView）与 **原生 Windows**（Win32 窗口程序）双客户端，共用一套纯 Dart 业务核心。在线直连与离线镜像两种模式均可完整使用；内置「全站内容档案」与本地全文检索，离线时还有小游戏「方块合成」；支持平板 / 横屏 / 折叠屏自适应与可信自动更新。
+**原生 Android**（Java + 系统 WebView），共用一套纯 Dart 业务核心。在线直连与离线镜像两种模式均可完整使用；内置「全站内容档案」与本地全文检索，离线时还有小游戏「方块合成」；支持平板 / 横屏 / 折叠屏自适应与可信自动更新。
 
-当前版本 **v2.3.0**（Android `versionCode=10` / Windows `2.3.0.0`）。
+当前版本 **v2.4.0**（Android `versionCode=11`，最低系统 **Android 9 / API 28**）。
 
 > 📦 直接到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载已正式签名的 Android APK，安装即用。
 
-> ✅ **关于 Windows 产物**：安装版（MSIX）与便携版（ZIP）由 [`.github/workflows/release.yml`](.github/workflows/release.yml) 在 `windows-latest`（Visual Studio Enterprise 2026）真实编译产出，随每个草稿 Release 一起发布；目前为**测试签名**（未配置组织代码签名证书），不伪装正式版。本仓库开发沙箱是 Linux，本机不产生 Windows 二进制，但 Win32 源码完整可审计、平台无关核心已编译测试。详见 [windows/README.md](windows/README.md)。
+> ⚠️ **重要公告：自 v2.4.0 起不再提供 Windows 安装包**。Windows 客户端（MSIX 安装版 / ZIP 便携版）已停止构建与发布，**后续版本只提供 Android APK**。历史版本的 Windows 产物仍保留在旧 Release 中可供下载，Win32 源码作为归档保留在 [`windows/`](windows/README.md) 目录，不再维护。请使用 Android 客户端或官网网页版。详见 [v2.4.0 发布说明](docs/RELEASE_NOTES_2.4.0.md)。
 
 ![界面预览](docs/界面预览.png)
 
@@ -140,8 +140,7 @@
 |---|---|
 | 通用 | Python 3.11、Node.js 22、Dart SDK 2.17.0、`zip` / `unzip` |
 | Android | JDK 8+（本机实测 javac 20，CI 锁定 Temurin 17）、`platforms;android-35`、`build-tools;35.0.0` |
-| Windows 核心（Linux 也能跑） | CMake ≥3.15、C++17 编译器 |
-| Windows 外壳（**仅 Windows 主机**） | Visual Studio 2022「使用 C++ 的桌面开发」+ Windows 10/11 SDK + `makeappx.exe` |
+| Windows 源码归档（不再产出安装包） | CMake ≥3.15、C++17 编译器；仅用于历史源码审计，非发布产物 |
 | 复现爬取（可选） | Python `requests` / `playwright` + Chromium |
 
 ```bash
@@ -183,16 +182,16 @@ python3 tools/gen_search_index.py --check
 (cd shared && dart tool/gen_tokens.dart .. --check)
 ```
 
-### 构建 Windows
+### Windows 源码（归档，不再构建安装包）
+
+自 v2.4.0 起**不再提供 Windows 安装包**，以下仅用于本地审计历史 Win32 源码，**不会产出随 Release 分发的产物**：
 
 ```powershell
-cmake -S windows -B windows/build -G "Visual Studio 17 2022" -A x64
-cmake --build windows/build --config Release
-# 产物：windows/build/Release/xqly.exe
-.\windows\tests\smoke.ps1 -Exe .\windows\build\Release\xqly.exe
+cmake -S windows/runner/core -B windows/build -G "Visual Studio 17 2022" -A x64
+cmake --build windows/build --config Release   # 平台无关核心的编译/测试，不含安装包打包
 ```
 
-打包 MSIX / 便携 ZIP / 签名见 [windows/README.md](windows/README.md) 与 `windows/packaging/`。**无正式代码签名证书时，签名脚本明确输出 `SIGN_RESULT=UNSIGNED`，产物必须标注测试版，不得伪装正式发布。**
+历史打包配置（MSIX / 便携 ZIP / 签名）仍留在 `windows/packaging/` 作为归档，详见 [windows/README.md](windows/README.md)。
 
 ### 可覆盖的环境变量
 
@@ -209,15 +208,15 @@ cmake --build windows/build --config Release
 
 ### 安装
 
-**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.3.0.apk`，点击安装；应用内也支持自动更新。
+**方式一（推荐）**：到 [Releases](https://github.com/ChaosSurvivalProject/xqly-app/releases) 下载 `xqly-app-v2.4.0.apk`，点击安装；应用内也支持自动更新。
 
 **方式二**：本地编译后 `adb install -r dist/星穹旅驿.apk`。
 
-`minSdk 24`（Android 7.0+）。APK 为自签名，安装时提示「未知来源」属正常；从 v1.1.0 起所有版本使用同一签名证书，覆盖安装不会冲突。校验方式：
+`minSdk 28`（**Android 9.0+**；自 v2.4.0 起最低系统要求由 Android 7.0 提升至 Android 9.0）。APK 为自签名，安装时提示「未知来源」属正常；从 v1.1.0 起所有版本使用同一签名证书，覆盖安装不会冲突。校验方式：
 
 ```bash
 sha256sum -c SHA256SUMS.txt
-apksigner verify --print-certs xqly-app-v2.3.0.apk | grep SHA-256
+apksigner verify --print-certs xqly-app-v2.4.0.apk | grep SHA-256
 # 期望: e1e8edc56e9700a27ab2cd4ba5f45fa0ba1bd9a88e4a261de7ef3684b3c21c05
 ```
 
@@ -239,10 +238,10 @@ python3 tools/gen_manifest.py      # 重建内容清单（内容未变化时保�
 ```bash
 export GH_TOKEN=<你的 Personal Access Token>
 bash scripts/publish.sh            # 推送源码（5 次重试 + 远端 HEAD 校验）
-python3 tools/gen_release_assets.py release/ 2.2.0   # 从真实产物生成摘要与 SBOM
-gh release create v2.3.0 release/* --repo ChaosSurvivalProject/xqly-app \
-  --title "星穹旅驿 2.2.0 · Windows + Android" \
-  --notes-file docs/RELEASE_NOTES_2.2.0.md --draft \
+python3 tools/gen_release_assets.py release/ 2.4.0   # 从真实产物生成摘要与 SBOM（仅 Android APK）
+gh release create v2.4.0 release/* --repo ChaosSurvivalProject/xqly-app \
+  --title "星穹旅驿 2.4.0 · Android" \
+  --notes-file docs/RELEASE_NOTES_2.4.0.md --draft \
   --target "$(git rev-parse HEAD)"
 ```
 
@@ -264,14 +263,15 @@ OTA 主资产名硬约束为 `xqly-app-v<version>.apk`，中文名只是附加�
 | [第三方依赖清单](docs/THIRD_PARTY.md) | 运行时零第三方库、构建期工具、系统组件、授权划分 |
 | [隐私与数据清单](docs/PRIVACY.md) | 本机数据、网络请求、同步边界、日志与桥 |
 | [发布指南](docs/RELEASE.md) · [迁移蓝图](docs/MIGRATION.md) · [v2.0.0 验收](docs/ACCEPTANCE.md) | 历史文档 |
-| [Windows 工程说明](windows/README.md) | Win32 构建、打包、已验证/未验证边界 |
+| [v2.4.0 发布说明](docs/RELEASE_NOTES_2.4.0.md) | Android 9 基线、停止 Windows 安装包、离线内容与仓库链接更新 |
+| [Windows 工程说明（归档）](windows/README.md) | 历史 Win32 源码构建、打包、已验证/未验证边界；不再产出安装包 |
 
 ---
 
 ## 目录结构
 
 ```
-├── AndroidManifest.xml            # versionCode=10 / versionName=2.3.0
+├── AndroidManifest.xml            # versionCode=11 / versionName=2.4.0 / minSdk 28 (Android 9)
 ├── build.sh                       # 零 Gradle 可重复构建（12 步门禁）
 ├── src/cn/xqly/app/               # Android 原生 Java（37 文件）
 │   ├── MainActivity.java / WebBridge.java / Updater.java / UpdateCenter.java
@@ -283,13 +283,13 @@ OTA 主资产名硬约束为 `xqly-app-v<version>.apk`，中文名只是附加�
 │   ├── test/run_tests.dart        # 178 个零依赖测试
 │   └── design-tokens.json
 ├── assets/apps/dev-portal/       # 开发者平台模组（4 个纯本地资源）
-├── windows/                       # 原生 Windows 工程
+├── windows/                       # Windows 源码归档（自 v2.4.0 起不再产出安装包）
 │   ├── runner/core/               # 平台无关 C++17（Linux 已编译 + 34 测试）
-│   ├── runner/win32/              # Win32 外壳源码（CI 编译）
+│   ├── runner/win32/              # Win32 外壳源码（归档，不再 CI 编译产物）
 │   ├── runner/resources/          # 版本资源、manifest、图标、设计令牌
-│   ├── packaging/                 # MSIX / AppInstaller / Inno Setup / 便携版 / 签名
+│   ├── packaging/                 # MSIX / AppInstaller / Inno Setup / 便携版 / 签名（归档）
 │   └── tests/smoke.ps1
-├── .github/workflows/             # ci.yml（双平台 CI）/ release.yml（Release 草稿）
+├── .github/workflows/             # ci.yml（Android CI + Windows 源码审计）/ release.yml（Android Release 草稿）
 ├── assets/                        # 离线镜像 + 内置页面 + 内容清单 + 设计令牌 CSS
 ├── tests/                         # JVM 测试 + Node 测试
 ├── tools/                         # 爬取、校验、脱敏、索引、清单、发布资产
@@ -309,4 +309,4 @@ OTA 主资产名硬约束为 `xqly-app-v<version>.apk`，中文名只是附加�
 
 ## 关于
 
-这是星穹旅驿的**官方**双平台客户端。在线、离线两种模式均可完整使用；离线模式内置全站内容与小游戏，适合网络不佳或出行途中查阅资料。问题反馈与功能建议请到本仓库提交 issue。
+这是星穹旅驿的**官方** Android 客户端。在线、离线两种模式均可完整使用；离线模式内置全站内容与小游戏，适合网络不佳或出行途中查阅资料。自 v2.4.0 起不再提供 Windows 安装包。问题反馈与功能建议请到本仓库 [https://github.com/ChaosSurvivalProject/xqly-app](https://github.com/ChaosSurvivalProject/xqly-app) 提交 issue。

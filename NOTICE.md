@@ -1,8 +1,8 @@
 # 官方发布与权利声明
 
-本仓库是 **星穹旅驿服务器运营团队官方发布**的双平台客户端源码与产物，官网为 [xqly.xt91tv.shop](https://xqly.xt91tv.shop)。
+本仓库是 **星穹旅驿服务器运营团队官方发布**的客户端源码与产物，官网为 [xqly.xt91tv.shop](https://xqly.xt91tv.shop)，开源仓库为 [github.com/ChaosSurvivalProject/xqly-app](https://github.com/ChaosSurvivalProject/xqly-app)。
 
-当前版本 **v2.3.0**（Android `versionCode=10` / Windows `2.3.0.0`）：原生 Android 客户端 + 原生 Windows 客户端 + 纯 Dart 双平台共享业务核心 + 开发者平台 + AI 工作台应用类模组。
+当前版本 **v2.4.0**（Android `versionCode=11`，最低系统 Android 9 / API 28）：原生 Android 客户端 + 纯 Dart 共享业务核心 + 开发者平台 + AI 工作台应用类模组。自 v2.4.0 起**不再提供 Windows 安装包**，`windows/` 目录仅为历史源码归档，不再构建与发布。
 
 ---
 
@@ -51,7 +51,7 @@
 
 | 平台 | 产物 | 状态 |
 |---|---|---|
-| Android | 正式签名 APK（`xqly-app-v2.3.0.apk`） | 使用仓库外私有发布密钥签名，证书自 v1.1.0 起一致，可覆盖升级 |
+| Android | 正式签名 APK（`xqly-app-v2.4.0.apk`） | 使用仓库外私有发布密钥签名，证书自 v1.1.0 起一致，可覆盖升级；最低 Android 9（API 28） |
 | Windows | MSIX 安装版 / 便携 ZIP | 由 `.github/workflows/release.yml` 在 `windows-latest` 真实编译产出；**当前为测试签名，未配置组织代码签名证书**，不得伪装正式版 |
 
 发布密钥、证书、Token、口令一律不进入仓库或日志。第三方组件与许可证见 `docs/THIRD_PARTY.md`，软件物料清单见 `docs/dual-platform/SBOM.md`。

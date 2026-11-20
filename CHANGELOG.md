@@ -2,7 +2,15 @@
 
 所有版本均通过 `build.sh` 12 步构建门禁，Android 产物为同一发布证书签名。
 
-## v2.3.0（本次发布）· AI 工作台（零依赖功能对标）
+## v2.4.0（本次发布）· Android 9 基线 · 停止 Windows 安装包
+
+- **Android 最低系统提升至 Android 9（API 28）**：`minSdkVersion` 24→28，`aapt2 link --min-sdk-version` 与 `d8 --min-api` 同步 28；Android 7/8 设备不再支持安装。
+- **明确公告：自 v2.4.0 起不再提供 Windows 安装包**（MSIX 安装版 / ZIP 便携版 / xqly.exe）。发布流水线移除 Windows job 与 Windows 资产；Win32 源码作为归档保留在 `windows/`，不再构建、上传或发布。历史版本 Windows 产物仍在旧 Release 中。
+- **离线内容更新**：全站档案与离线页脚加入 GitHub 仓库链接 `https://github.com/ChaosSurvivalProject/xqly-app`，并记录本次平台变更公告。
+- **版本提升**：Android `versionCode=11` / `versionName=2.4.0`，六处真源与测试断言一致。
+- 详见 [docs/RELEASE_NOTES_2.4.0.md](docs/RELEASE_NOTES_2.4.0.md)。
+
+## v2.3.0 · AI 工作台（零依赖功能对标）
 
 - 按用户选定方向，以零依赖架构重写 harness 的会话/供应商/插件/投递区/自检/诊断交互，**不引入 AGPL/GPL 代码**。
 - 新增应用 `ai-workbench`：互斥浮层、Dock + 侧栏双入口、独立 `workbench:*` 作用域与存储分区。

@@ -1,6 +1,6 @@
 # 隐私与数据清单
 
-适用版本 **v2.3.0**（Android `versionCode=10` / Windows `2.3.0.0`）。
+适用版本 **v2.4.0**（Android `versionCode=11`，最低 Android 9 / API 28）。自 v2.4.0 起不再提供 Windows 安装包，`windows/` 目录仅作源码归档。
 
 本文件说明「星穹旅驿」双平台客户端在本机保存什么、向哪里发起网络请求、以及哪些信息**不会**被采集。应用内「设置 → 隐私说明与数据清单」提供同样的信息。权限与系统集成的完整逐项说明见 [PERMISSIONS.md](PERMISSIONS.md)。
 

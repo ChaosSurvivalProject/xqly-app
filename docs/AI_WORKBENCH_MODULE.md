@@ -1,6 +1,6 @@
 # AI 工作台模组 · 零依赖功能对标说明
 
-适用版本 **v2.3.0**（Android `versionCode=10` / Windows `2.3.0.0`）。
+适用版本 **v2.4.0**（Android `versionCode=11`；最低 Android 9 / API 28。Windows 安装包自 v2.4.0 起停止提供，本模组仅随 Android 客户端发布）。
 
 ## 1. 背景与决策
 

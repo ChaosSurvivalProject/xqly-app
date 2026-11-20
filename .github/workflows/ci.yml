@@ -1,4 +1,4 @@
-name: 双平台持续集成
+name: Android 持续集成（Windows 源码归档审计）
 
 on:
   push:
@@ -83,9 +83,11 @@ jobs:
           path: dist/星穹旅驿.apk
           if-no-files-found: error
 
-  # ---------------------------------------------------------------- Windows 核心
+  # ---------------------------------------------------------------- Windows 源码归档（不再产出安装包）
+  # 自 v2.4.0 起 Windows 安装包停止提供；以下 job 仅对归档源码做编译/测试审计，
+  # 不再上传 exe、不再参与任何 Release 资产。
   windows-core:
-    name: Windows 核心 · CMake 编译 + 34 测试
+    name: Windows 源码归档 · CMake 编译 + 34 测试（非发布产物）
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,9 +98,9 @@ jobs:
       - name: 单元测试
         run: ctest --test-dir build/wincore -C Release --output-on-failure
 
-  # ---------------------------------------------------------------- Windows 外壳
+  # ---------------------------------------------------------------- Windows 外壳源码（归档审计）
   windows-shell:
-    name: Windows 外壳 · MSVC 编译 + 冒烟测试
+    name: Windows 外壳源码 · MSVC 编译 + 冒烟测试（非发布产物）
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,11 +116,7 @@ jobs:
       - name: Windows 冒烟测试
         shell: pwsh
         run: .\windows\tests\smoke.ps1 -Exe .\windows\build\Release\xqly.exe
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-exe
-          path: windows/build/Release/xqly.exe
-          if-no-files-found: warn
+      # 自 v2.4.0 起不再上传 windows-exe 产物；该源码仅作归档审计。
 
   # ---------------------------------------------------------------- 安全与合规
   security-scan:

@@ -1,4 +1,4 @@
-name: 双平台发布（草稿）
+name: Android 发布（草稿）· Windows 安装包已停止提供
 
 # 由版本标签触发；只创建 **草稿**，不自动公开。
 # 私钥/证书只存在受保护 Secrets 或签名服务，绝不进入仓库或日志。
@@ -44,15 +44,8 @@ jobs:
           grep -qF "VERSION_NAME = \"$TAG\"" src/cn/xqly/app/MainActivity.java
           grep -qF "versionName = '$TAG'" shared/lib/src/identity.dart
           grep -qF "V_NAME=$TAG" build.sh
-          grep -qF "windowsVersion = '$TAG.0'" shared/lib/src/identity.dart
-          # resource.h 里逗号后有空格；拼出完全一致的字面量再精确比对。
-          # 旧的 `tr . ,` 拼法实测为 "2,0,1, 0"，与 "2, 0, 1, 0" 不匹配；
-          # 用 awk 拼字符串又因引号歧义触发 "runaway string constant"。
-          # 改用纯 shell 参数展开，无引号歧义。
-          V1=${TAG%%.*}; R=${TAG#*.}; V2=${R%%.*}; V3=${R##*.}
-          EXPECTED_COMMA="$V1, $V2, $V3, 0"
-          grep -qF "XQLY_VERSION_COMMA  $EXPECTED_COMMA" windows/runner/resources/resource.h
-          grep -qF "\"$TAG.0\"" windows/runner/resources/resource.h
+          # 自 v2.4.0 起 Windows 不再产出安装包，其版本头仅作源码归档，
+          # 不再作为版本一致性门禁的真源（避免归档源码漂移阻断 Android 发布）。
           # versionCode 必须比上一个 tag 递增
           PREV=$(git tag --list 'v*' --sort=-v:refname | grep -v "^v$TAG$" | head -1)
           if [ -n "$PREV" ]; then
@@ -62,7 +55,7 @@ jobs:
               echo "::error::versionCode 未递增: $CODE <= $PREV_CODE ($PREV)"; exit 1
             fi
           fi
-          echo "版本校验通过: $TAG / code=$CODE / windows=$TAG.0"
+          echo "版本校验通过: $TAG / code=$CODE / Android only（Windows 安装包已停止提供）"
 
   # ---------------------------------------------------------------- 2. Android
   android:
@@ -120,86 +113,17 @@ jobs:
           path: dist/星穹旅驿.apk
           if-no-files-found: error
 
-  # ---------------------------------------------------------------- 3. Windows
-  windows:
-    name: 构建 Windows x64 安装版 / 便携版
-    needs: validate
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: 诊断 VS / MSVC 可用性
-        shell: pwsh
-        run: |
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json 2>$null | ConvertFrom-Json
-          if ($vs) { Write-Host "VS 实例: $($vs.displayName) @ $($vs.installationPath)" }
-          else { Write-Host "::warning::未检测到含 C++ 工作负载的 Visual Studio 实例" }
-      - name: 编译 Win32 外壳（自动探测生成器）
-        shell: pwsh
-        run: |
-          # 不硬编码 VS 生成器：让 CMake 自动探测可用工具链（VS / Build Tools / Ninja）。
-          cmake -S windows -B windows/build -A x64
-          cmake --build windows/build --config Release
-      - name: 冒烟测试
-        shell: pwsh
-        run: .\windows\tests\smoke.ps1 -Exe .\windows\build\Release\xqly.exe
-      - name: 组装 MSIX 与便携 ZIP
-        shell: pwsh
-        run: |
-          $V = "${{ needs.validate.outputs.version }}"
-          New-Item -ItemType Directory -Force -Path dist, msix-stage, portable-stage | Out-Null
-          # --- 便携 ZIP ---
-          Copy-Item windows\build\Release\xqly.exe portable-stage\
-          Get-ChildItem windows\build\Release -Filter *.dll | Copy-Item -Destination portable-stage\
-          New-Item -ItemType Directory -Force -Path portable-stage\data | Out-Null
-          Copy-Item windows\build\Release\data\* portable-stage\data\ -Recurse -ErrorAction SilentlyContinue
-          Copy-Item windows\runner\resources\design-tokens.json portable-stage\data\
-          Copy-Item windows\packaging\portable\PORTABLE.md portable-stage\
-          New-Item -ItemType File -Force -Path portable-stage\portable.flag | Out-Null
-          Copy-Item LICENSE, NOTICE.md portable-stage\
-          Compress-Archive -Path portable-stage\* -DestinationPath "dist\windows-portable.zip" -Force
-          # --- MSIX 组装 ---
-          Copy-Item windows\build\Release\xqly.exe msix-stage\
-          New-Item -ItemType Directory -Force -Path msix-stage\data | Out-Null
-          Copy-Item windows\runner\resources\design-tokens.json msix-stage\data\
-          Copy-Item windows\packaging\msix\AppxManifest.xml msix-stage\
-          New-Item -ItemType Directory -Force -Path msix-stage\Assets | Out-Null
-          Copy-Item windows\packaging\msix\Assets\* msix-stage\Assets\
-          $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter makeappx.exe -Recurse |
-                      Where-Object { $_.FullName -like '*\x64\*' } | Select-Object -First 1 -ExpandProperty FullName
-          if ($makeappx) { & $makeappx pack /d msix-stage /p "dist\windows-setup.msix" /nv }
-          else { Write-Host "::warning::未找到 makeappx.exe，跳过 MSIX（改用 EXE 安装器备选）" }
-      - name: 签名（无正式证书则明确标注 UNSIGNED，不伪造）
-        shell: pwsh
-        env:
-          PFX: ${{ secrets.WINDOWS_SIGNING_PFX }}
-          PFX_PASS: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
-        run: |
-          $files = @()
-          if (Test-Path dist\windows-setup.msix) { $files += "dist\windows-setup.msix" }
-          $files += "windows\build\Release\xqly.exe"
-          $env:WINDOWS_SIGNING_PFX = $env:PFX
-          $env:WINDOWS_SIGNING_PASSWORD = $env:PFX_PASS
-          .\windows\packaging\sign.ps1 -Files $files
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-bundle
-          path: |
-            dist/windows-setup.msix
-            dist/windows-portable.zip
-            windows/build/Release/xqly.exe
-          if-no-files-found: warn
-
-  # ---------------------------------------------------------------- 4. 草稿发布
+  # ---------------------------------------------------------------- 3. 草稿发布
+  # 自 v2.4.0 起不再构建 Windows 安装包：原 windows job 整体移除。
+  # Win32 源码仍作为归档保留在 windows/ 目录，仅做源码审计，不产出分发物。
   draft:
     name: 生成清单 / SBOM / Release 草稿
-    needs: [validate, android, windows]
+    needs: [validate, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: android-apk, path: artifacts }
-      - uses: actions/download-artifact@v4
-        with: { name: windows-bundle, path: artifacts }
       - name: 按真实产物命名（不创建占位假文件）
         run: |
           V="${{ needs.validate.outputs.version }}"
@@ -208,21 +132,7 @@ jobs:
           # 资产名统一用 ASCII：GitHub 会把中文资产名归一成 default.apk，
           # 导致 SHA256SUMS.txt 里的文件名对不上（v2.0.0 发布时实证）。
           cp artifacts/星穹旅驿.apk "release/xqly-app-v$V-android-universal-release.apk"
-          # upload-artifact@v4 会保留 dist/ 目录前缀，兼容两种布局再拷贝。
-          # 资产名必须用 ASCII：GitHub 会把中文名归一/截断（APK 已用 xqly-app-v* 前缀规避），
-          # 中文前缀的 Windows 资产上传后会丢失前缀，导致 SHA256SUMS.txt 对不上。
-          MSIX=$(ls artifacts/dist/windows-setup.msix artifacts/windows-setup.msix 2>/dev/null | head -1)
-          ZIP=$(ls artifacts/dist/windows-portable.zip artifacts/windows-portable.zip 2>/dev/null | head -1)
-          if [ -n "$MSIX" ]; then
-            cp "$MSIX" "release/xqly-app-v$V-windows-x64-setup.msix"
-          else
-            echo "::warning::未找到 windows-setup.msix，跳过 MSIX 资产"
-          fi
-          if [ -n "$ZIP" ]; then
-            cp "$ZIP" "release/xqly-app-v$V-windows-x64-portable.zip"
-          else
-            echo "::warning::未找到 windows-portable.zip，跳过便携版资产"
-          fi
+          # 自 v2.4.0 起不再拷贝任何 Windows 安装包资产（MSIX / ZIP 均已停止提供）。
           ls -lh release/
       - name: 生成 SHA256SUMS.txt 与 SBOM.spdx.json
         run: python3 tools/gen_release_assets.py release "$V"
@@ -257,11 +167,11 @@ jobs:
           # /releases/tag/vX.Y.Z，不是本步骤的缺陷。
           if gh api "repos/$REPO/git/refs/tags/v$V" >/dev/null 2>&1; then
             gh release create "v$V" release/* --repo "$REPO" \
-              --title "星穹旅驿 $V · Windows + Android" \
+              --title "星穹旅驿 $V · Android" \
               --notes-file "release/RELEASE_NOTES_$V.md" --draft
           else
             gh release create "v$V" release/* --repo "$REPO" \
-              --title "星穹旅驿 $V · Windows + Android" \
+              --title "星穹旅驿 $V · Android" \
               --notes-file "release/RELEASE_NOTES_$V.md" --draft \
               --target "$GITHUB_SHA"
           fi
@@ -274,7 +184,7 @@ jobs:
           gh release download "v$V" --repo "$REPO" --dir /tmp/verify
           (cd /tmp/verify && sha256sum -c SHA256SUMS.txt)
           echo "摘要校验通过"
-          # 签名验证：Windows 仅在有正式证书时可用；Android 用 apksigner
+          # 签名验证：自 v2.4.0 起只有 Android 资产，用 keytool 校验证书指纹
           if [ -f "/tmp/verify/xqly-app-v$V.apk" ]; then
             keytool -printcert -jarfile "/tmp/verify/xqly-app-v$V.apk" 2>/dev/null | grep -i SHA256 | head -2 || true
           fi

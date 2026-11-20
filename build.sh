@@ -15,8 +15,8 @@ BT="$SDK/build-tools/$BT_VER"
 JAR="$SDK/platforms/$PLATFORM/android.jar"
 
 # 版本唯一真源：Manifest 与 MainActivity 必须与此一致，防止漂移
-V_CODE=10
-V_NAME=2.3.0
+V_CODE=11
+V_NAME=2.4.0
 
 OUT="${OUT:-$ROOT/dist/星穹旅驿.apk}"
 KS_PASS="${KS_PASS:-xqly2026}"
@@ -86,7 +86,7 @@ echo "=== [7/12] 链接资源与 Manifest ==="
   --manifest AndroidManifest.xml \
   -R build/res.zip \
   --java build/gen \
-  --min-sdk-version 24 --target-sdk-version 35 \
+  --min-sdk-version 28 --target-sdk-version 35 \
   --version-code "$V_CODE" --version-name "$V_NAME" \
   --auto-add-overlay
 
@@ -97,7 +97,7 @@ javac -source 8 -target 8 -encoding UTF-8 -nowarn \
 
 echo "=== [9/12] 转换为 DEX ==="
 find build/classes -name '*.class' > build/classes.txt
-"$BT/d8" --min-api 24 --lib "$JAR" --output build/dex @build/classes.txt
+"$BT/d8" --min-api 28 --lib "$JAR" --output build/dex @build/classes.txt
 
 echo "=== [10/12] 组装 APK（dex + assets）并对齐 ==="
 cp build/base.apk build/unsigned.apk

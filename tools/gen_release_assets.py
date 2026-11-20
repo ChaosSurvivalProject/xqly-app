@@ -6,8 +6,9 @@
 用法：
     python3 tools/gen_release_assets.py <release_dir> <version>
 
-本机（Linux）运行只会包含真实存在的资产（Android APK）；Windows 安装版与
-便携 ZIP 由 .github/workflows/release.yml 在 windows-latest 上生成后一并纳入。
+本机（Linux）运行只会包含真实存在的资产（Android APK）。自 v2.4.0 起不再提供
+Windows 安装包，release.yml 已移除 Windows job；历史版本曾由 windows-latest
+生成的 MSIX / 便携 ZIP 不再纳入新发布的资产。
 """
 import hashlib
 import json
